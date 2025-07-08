@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # OpenTelemetry Collector
   otel-collector:
@@ -16,8 +14,15 @@ services:
       - "4318:4318"   # OTLP HTTP receiver
       - "55679:55679" # zpages extension
     depends_on:
-      - jaeger
-      - prometheus
+      jaeger:
+        condition: service_started
+      prometheus:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:13133/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # Jaeger for distributed tracing
   jaeger:
@@ -57,7 +62,8 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_USERS_ALLOW_SIGN_UP=false
     depends_on:
-      - prometheus
+      prometheus:
+        condition: service_started
 
   # Loki for log aggregation
   loki:
@@ -67,6 +73,11 @@ services:
     volumes:
       - ./loki.yml:/etc/loki/local-config.yaml
     command: -config.file=/etc/loki/local-config.yaml
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3100/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # Promtail for log collection
   promtail:
