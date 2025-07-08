@@ -1,7 +1,12 @@
+import re
 from typing import List, Set, Dict, Optional
 from dataclasses import dataclass
 from pathlib import Path
+
 from core.chunker import TreeSitterChunker, CodeChunk
+from utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -35,6 +40,7 @@ class ASTResolver:
 
     def analyze_repository(self, repo_path: str) -> Dict[str, any]:
         """Analyze repository and build symbol table and dependencies."""
+        logger.info(f"Analyzing repository: {repo_path}")
         repo_path = Path(repo_path)
 
         # Extract all chunks with symbols
@@ -220,11 +226,10 @@ class ASTResolver:
         return symbols
 
     def _extract_python_imports(self, content: str) -> List[str]:
-        """Extract imported symbols from Python import statement."""
+        """Extract imported symbols from Python import statements using regex patterns."""
         imported = []
 
         # Simple regex-based extraction for common patterns
-        import re
 
         # from module import symbol1, symbol2
         from_imports = re.findall(r"from\s+[\w.]+\s+import\s+([\w\s,]+)", content)
@@ -242,10 +247,8 @@ class ASTResolver:
         return imported
 
     def _extract_js_imports(self, content: str) -> List[str]:
-        """Extract imported symbols from JavaScript/TypeScript import statement."""
+        """Extract imported symbols from JavaScript/TypeScript import statements using regex patterns."""
         imported = []
-
-        import re
 
         # import { symbol1, symbol2 } from 'module'
         named_imports = re.findall(r"import\s*\{\s*([\w\s,]+)\s*\}\s*from", content)
@@ -260,10 +263,8 @@ class ASTResolver:
         return imported
 
     def _extract_python_calls(self, content: str) -> List[str]:
-        """Extract function calls from Python code."""
+        """Extract function calls from Python code using regex patterns, filtering out keywords."""
         calls = []
-
-        import re
 
         # Simple function call pattern: function_name(
         function_calls = re.findall(r"(\w+)\s*\(", content)
@@ -304,10 +305,8 @@ class ASTResolver:
         return list(set(calls))  # Remove duplicates
 
     def _extract_js_calls(self, content: str) -> List[str]:
-        """Extract function calls from JavaScript/TypeScript code."""
+        """Extract function calls from JavaScript/TypeScript code using regex patterns, filtering out keywords."""
         calls = []
-
-        import re
 
         # Function call pattern: function_name(
         function_calls = re.findall(r"(\w+)\s*\(", content)

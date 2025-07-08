@@ -6,8 +6,8 @@ from typing import Optional
 
 def setup_logging(
     level: str = "INFO",
-    log_file: Optional[str] = None,
     format_string: Optional[str] = None,
+    log_file: Optional[str] = None,
 ) -> logging.Logger:
     """Set up logging configuration."""
 
@@ -29,14 +29,16 @@ def setup_logging(
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
 
-    # File handler if specified
-    if log_file:
-        log_path = Path(log_file)
-        log_path.parent.mkdir(parents=True, exist_ok=True)
+    # File handler (add if specified or use default)
+    if log_file is None:
+        log_file = "review_output.log"
+    
+    log_path = Path(log_file)
+    log_path.parent.mkdir(parents=True, exist_ok=True)
 
-        file_handler = logging.FileHandler(log_path)
-        file_handler.setFormatter(formatter)
-        logger.addHandler(file_handler)
+    file_handler = logging.FileHandler(log_path)
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
 
     return logger
 

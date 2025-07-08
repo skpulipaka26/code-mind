@@ -3,6 +3,9 @@ from pathlib import Path
 from typing import Optional
 from dataclasses import dataclass
 import json
+from utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -16,6 +19,21 @@ class Config:
     chunk_overlap: int = 5
     review_temperature: float = 0.1
     vector_dimension: int = 896
+    
+    # Logging configuration
+    log_level: str = "INFO"
+    log_file: str = "review_output.log"
+    
+    # Local model configuration
+    local_model_base_url: str = "http://127.0.0.1:1234/v1"
+    local_embedding_model: str = "text-embedding-qwen3-embedding-0.6b"
+    local_completion_model: str = "qwen2.5-coder-7b-instruct"
+    
+    # Processing configuration
+    embedding_batch_size: int = 10
+    vector_search_k: int = 10
+    rerank_top_k: int = 5
+    max_tokens: int = 2048
 
     @classmethod
     def load(cls, config_path: Optional[str] = None) -> "Config":
@@ -34,7 +52,7 @@ class Config:
                         if hasattr(config, key):
                             setattr(config, key, value)
             except Exception as e:
-                print(f"Warning: Could not load config file: {e}")
+                logger.warning(f"Could not load config file: {e}")
 
         # Validate required fields
         if not config.openrouter_api_key:

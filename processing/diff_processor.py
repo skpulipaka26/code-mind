@@ -3,6 +3,9 @@ from dataclasses import dataclass
 from pathlib import Path
 import unidiff
 from core.chunker import TreeSitterChunker, CodeChunk
+from utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -51,7 +54,8 @@ class DiffProcessor:
                     hunks.append(diff_hunk)
 
             return hunks
-        except Exception:
+        except Exception as e:
+            logger.error(f"Error processing diff: {e}")
             return []
 
     def extract_changed_chunks(
@@ -80,7 +84,8 @@ class DiffProcessor:
                         changed_chunks.append(
                             ChangedChunk(chunk=chunk, change_type=change_type)
                         )
-            except Exception:
+            except Exception as e:
+                logger.warning(f"Error processing file {file_path}: {e}")
                 continue
 
         return changed_chunks

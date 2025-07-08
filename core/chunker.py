@@ -1,15 +1,15 @@
 from typing import List, Optional
 from dataclasses import dataclass
 from pathlib import Path
+
 from tree_sitter import Language, Parser, Node
 import tree_sitter_python as tspython
 import tree_sitter_javascript as tsjavascript
 import tree_sitter_typescript as tstypescript
 
-FILE_CHUNK_MAX_CHARS = 20000
+from utils.logging import get_logger
 
-
-
+logger = get_logger(__name__)
 
 @dataclass
 class CodeChunk:
@@ -32,14 +32,16 @@ class TreeSitterChunker:
         # Initialize Python parser
         try:
             self.languages["python"] = Language(tspython.language())
-        except Exception:
-            pass
+            logger.debug("Python parser initialized.")
+        except Exception as e:
+            logger.warning(f"Could not initialize Python parser: {e}")
 
         # Initialize JavaScript parser
         try:
             self.languages["javascript"] = Language(tsjavascript.language())
-        except Exception:
-            pass
+            logger.debug("JavaScript parser initialized.")
+        except Exception as e:
+            logger.warning(f"Could not initialize JavaScript parser: {e}")
 
         # Initialize TypeScript parser (try different APIs)
         try:
@@ -49,8 +51,9 @@ class TreeSitterChunker:
                 self.languages["typescript"] = Language(
                     tstypescript.language_typescript()
                 )
-        except Exception:
-            pass
+            logger.debug("TypeScript parser initialized.")
+        except Exception as e:
+            logger.warning(f"Could not initialize TypeScript parser: {e}")
 
         # Create parsers for available languages
         for lang, language in self.languages.items():
@@ -63,27 +66,14 @@ class TreeSitterChunker:
         """Extract chunks from a file."""
         language = self._detect_language(file_path)
         if language not in self.parsers:
+            logger.warning(f"No parser available for language: {language}")
             return []
 
-        # If the file content is below the max character limit, treat the entire file as one chunk.
-        if len(content) <= FILE_CHUNK_MAX_CHARS:
-            return [CodeChunk(
-                content=content,
-                file_path=file_path,
-                start_line=1,
-                end_line=len(content.splitlines()),
-                chunk_type="file",
-                name=Path(file_path).name,
-                language=language,
-            )]
-        else:
-            # For larger files, proceed with AST-based chunking.
-            parser = self.parsers[language]
-            tree = parser.parse(bytes(content, "utf8"))
-
-            chunks = []
-            self._extract_chunks(tree.root_node, content, file_path, language, chunks)
-            return chunks
+        parser = self.parsers[language]
+        tree = parser.parse(bytes(content, "utf8"))
+        chunks = []
+        self._extract_chunks(tree.root_node, content, file_path, language, chunks)
+        return chunks
 
     def chunk_repository(self, repo_path: str) -> List[CodeChunk]:
         """Extract chunks from repository."""
@@ -99,7 +89,11 @@ class TreeSitterChunker:
                     content = file_path.read_text(encoding="utf-8")
                     file_chunks = self.chunk_file(str(file_path), content)
                     chunks.extend(file_chunks)
-                except Exception:
+                except UnicodeDecodeError:
+                    logger.debug(f"Skipping binary file: {file_path}")
+                    continue
+                except Exception as e:
+                    logger.warning(f"Error reading file {file_path}: {e}")
                     continue
 
         return chunks
@@ -140,6 +134,11 @@ class TreeSitterChunker:
 
         elif node.type == "class_definition":
             chunk = self._create_chunk(node, content, file_path, "python", "class")
+            if chunk:
+                chunks.append(chunk)
+        
+        elif node.type in ["import_statement", "import_from_statement"]:
+            chunk = self._create_chunk(node, content, file_path, "python", "import")
             if chunk:
                 chunks.append(chunk)
 
@@ -191,6 +190,7 @@ class TreeSitterChunker:
         
         # Ensure chunk content is not empty
         if not chunk_content.strip():
+            logger.debug(f"Skipping empty chunk in {file_path} from line {start_line} to {end_line}")
             return None
 
         name = self._extract_name(node, content)
@@ -213,8 +213,8 @@ class TreeSitterChunker:
         return None
 
     def _should_skip(self, file_path: Path) -> bool:
-        """Check if file should be skipped."""
-        skip_dirs = {".git", "__pycache__", "node_modules", "venv", "env"}
+        """Check if file should be skipped based on directory patterns."""
+        skip_dirs = {".git", "__pycache__", "node_modules", "venv", "env", ".venv", "dist", "build", ".pytest_cache", "site-packages", "typings"}
 
         for part in file_path.parts:
             if part in skip_dirs:

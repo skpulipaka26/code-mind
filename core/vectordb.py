@@ -5,6 +5,9 @@ from dataclasses import dataclass
 import numpy as np
 import faiss
 from core.chunker import CodeChunk
+from utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -21,7 +24,7 @@ class VectorMetadata:
 class VectorDatabase:
     """Simple FAISS vector database for code chunks."""
 
-    def __init__(self, dimension: int = 896):
+    def __init__(self, dimension: int = 1024):
         self.dimension = dimension
         self.index = faiss.IndexFlatIP(dimension)
         self.metadata: List[VectorMetadata] = []
@@ -30,7 +33,10 @@ class VectorDatabase:
     def add_chunks(self, chunks: List[CodeChunk], embeddings: List[List[float]]):
         """Add chunks with embeddings to database."""
         if len(chunks) != len(embeddings):
+            logger.error("Chunks and embeddings must have same length")
             raise ValueError("Chunks and embeddings must have same length")
+
+        logger.info(f"Adding {len(chunks)} chunks to vector database.")
 
         # Normalize and add embeddings
         embeddings_array = np.array(embeddings, dtype=np.float32)
@@ -78,22 +84,31 @@ class VectorDatabase:
 
     def save(self, path: str):
         """Save database to disk."""
-        faiss.write_index(self.index, f"{path}.faiss")
-        with open(f"{path}.pkl", "wb") as f:
-            pickle.dump(
-                {"metadata": self.metadata, "chunk_contents": self.chunk_contents}, f
-            )
+        try:
+            faiss.write_index(self.index, f"{path}.faiss")
+            with open(f"{path}.pkl", "wb") as f:
+                pickle.dump(
+                    {"metadata": self.metadata, "chunk_contents": self.chunk_contents}, f
+                )
+            logger.info(f"Vector database saved to {path}.faiss and {path}.pkl")
+        except Exception as e:
+            logger.error(f"Error saving vector database: {e}", exc_info=True)
 
     def load(self, path: str):
         """Load database from disk."""
-        if os.path.exists(f"{path}.faiss"):
-            self.index = faiss.read_index(f"{path}.faiss")
+        try:
+            if os.path.exists(f"{path}.faiss"):
+                self.index = faiss.read_index(f"{path}.faiss")
+                logger.info(f"Loaded FAISS index from {path}.faiss")
 
-        if os.path.exists(f"{path}.pkl"):
-            with open(f"{path}.pkl", "rb") as f:
-                data = pickle.load(f)
-                self.metadata = data["metadata"]
-                self.chunk_contents = data["chunk_contents"]
+            if os.path.exists(f"{path}.pkl"):
+                with open(f"{path}.pkl", "rb") as f:
+                    data = pickle.load(f)
+                    self.metadata = data["metadata"]
+                    self.chunk_contents = data["chunk_contents"]
+                logger.info(f"Loaded metadata and chunk contents from {path}.pkl")
+        except Exception as e:
+            logger.error(f"Error loading vector database: {e}")
 
     def stats(self) -> Dict[str, Any]:
         """Get database statistics."""

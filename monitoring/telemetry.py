@@ -1,7 +1,6 @@
 """OpenTelemetry setup and instrumentation for turbo-review."""
 
 import os
-import logging
 from typing import Optional, Dict, Any
 from contextlib import contextmanager
 
@@ -15,6 +14,7 @@ from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExp
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.instrumentation.requests import RequestsInstrumentor
 from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+from utils.logging import get_logger
 
 
 class TelemetryManager:
@@ -23,7 +23,7 @@ class TelemetryManager:
     def __init__(self):
         self.tracer: Optional[trace.Tracer] = None
         self.meter: Optional[metrics.Meter] = None
-        self.logger = logging.getLogger(__name__)
+        self.logger = get_logger(__name__)
         self._initialized = False
         
         # Metrics

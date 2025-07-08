@@ -1,15 +1,13 @@
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 import requests
+from utils.logging import get_logger
 
-from core.chunker import TreeSitterChunker
-from core.vectordb import VectorDatabase
-from inference.openrouter_client import OpenRouterClient
-from inference.prompt_builder import PromptBuilder
-from inference.response_parser import ResponseParser
-from processing.diff_processor import DiffProcessor
-from processing.reranker import CodeReranker
+from cli.config import Config
+from services.review_service import ReviewService
+from monitoring.telemetry import setup_telemetry
 
+logger = get_logger(__name__)
 
 @dataclass
 class GitHubConfig:
@@ -48,10 +46,10 @@ class GitHubIntegration:
             }
         )
 
-        self.chunker = TreeSitterChunker()
-        self.diff_processor = DiffProcessor()
-        self.prompt_builder = PromptBuilder()
-        self.response_parser = ResponseParser()
+        # Review service will be initialized with config when needed
+        
+        # Initialize telemetry for GitHub integration
+        setup_telemetry()
 
     def get_pull_request(self, pr_number: int) -> Optional[PullRequest]:
         """Get pull request information."""
@@ -59,6 +57,7 @@ class GitHubIntegration:
 
         response = self.session.get(url)
         if response.status_code != 200:
+            logger.error(f"Failed to get PR {pr_number} info. Status: {response.status_code}")
             return None
 
         data = response.json()
@@ -86,7 +85,7 @@ class GitHubIntegration:
     async def review_pull_request(
         self,
         pr_number: int,
-        openrouter_client: OpenRouterClient,
+        config: Config,
         index_path: str = "index",
         focus_areas: List[str] = None,
     ) -> Dict[str, Any]:
@@ -95,52 +94,45 @@ class GitHubIntegration:
         # Get PR information
         pr = self.get_pull_request(pr_number)
         if not pr:
+            logger.error(f"Pull request {pr_number} not found.")
             return {"error": "Pull request not found"}
 
         # Get diff
         diff_content = self.get_pull_request_diff(pr_number)
         if not diff_content:
+            logger.error(f"Could not retrieve diff for PR {pr_number}.")
             return {"error": "Could not retrieve diff"}
 
-        # Process diff
-        changed_chunks = self.diff_processor.extract_changed_chunks(diff_content)
-        query = self.diff_processor.create_query_from_changes(changed_chunks)
-
-        # Load vector database
+        # Use ReviewService for consistent review logic
+        review_service = ReviewService(config, logger)
+        
+        # Create a temporary diff file for the service
+        import tempfile
+        import os
+        
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.diff', delete=False) as f:
+            f.write(diff_content)
+            temp_diff_path = f.name
+        
         try:
-            db = VectorDatabase()
-            db.load(index_path)
-        except Exception as e:
-            return {"error": f"Could not load index: {e}"}
+            # Use ReviewService to perform the review
+            review_result = await review_service.review_diff(
+                diff_file=temp_diff_path,
+                index=index_path,
+                repo_path=None  # GitHub integration doesn't have local repo path
+            )
+            
+            if not review_result:
+                return {"error": "Review service failed to generate review"}
+            
+            review_text = review_result.review_content
+            
+        finally:
+            # Clean up temp file
+            os.unlink(temp_diff_path)
 
-        # Search for related code
-        query_embedding = await openrouter_client.embed(query)
-        search_results = db.search(query_embedding, k=15)
-
-        # Rerank results
-        reranker = CodeReranker(openrouter_client)
-        chunk_contents = {
-            meta.chunk_id: db.get_content(meta.chunk_id) for meta, _ in search_results
-        }
-        reranked_results = await reranker.rerank_search_results(
-            query, search_results, chunk_contents, top_k=8
-        )
-
-        # Build review prompt
-        prompt = self.prompt_builder.build_review_prompt(
-            diff_content=diff_content,
-            context_chunks=reranked_results,
-            changed_chunks=changed_chunks,
-            focus_areas=focus_areas,
-        )
-
-        # Generate review
-        review_text = await openrouter_client.complete(
-            [{"role": "user", "content": prompt}]
-        )
-
-        # Parse review
-        parsed_review = self.response_parser.parse_review(review_text)
+        # Process review (just use raw text)
+        raw_review_text = review_text
 
         return {
             "pull_request": {
@@ -150,33 +142,8 @@ class GitHubIntegration:
                 "files_changed": len(pr.files_changed),
             },
             "review": {
-                "summary": parsed_review.summary,
-                "total_issues": parsed_review.total_issues,
-                "severity_counts": {
-                    k.value: v for k, v in parsed_review.severity_counts.items()
-                },
-                "overall_score": parsed_review.overall_score,
-                "raw_text": review_text,
+                "raw_text": raw_review_text,
             },
-            "sections": [
-                {
-                    "title": section.title,
-                    "content": section.content,
-                    "issues": [
-                        {
-                            "title": issue.title,
-                            "description": issue.description,
-                            "severity": issue.severity.value,
-                            "category": issue.category,
-                            "file_path": issue.file_path,
-                            "line_number": issue.line_number,
-                            "suggestion": issue.suggestion,
-                        }
-                        for issue in section.issues
-                    ],
-                }
-                for section in parsed_review.sections
-            ],
         }
 
     def post_review_comment(self, pr_number: int, comment: str) -> bool:
@@ -260,10 +227,10 @@ class GitHubWebhookHandler:
         pr_number = event_data["pull_request"]["number"]
 
         # Review the pull request
-        async with OpenRouterClient() as client:
-            review_result = await self.github.review_pull_request(
-                pr_number, client, focus_areas=["security", "performance", "bugs"]
-            )
+        config = Config.load()
+        review_result = await self.github.review_pull_request(
+            pr_number, config, focus_areas=["security", "performance", "bugs"]
+        )
 
         if "error" in review_result:
             return review_result
@@ -290,35 +257,9 @@ class GitHubWebhookHandler:
             f"**Pull Request:** #{pr_info['number']} - {pr_info['title']}",
             f"**Files Changed:** {pr_info['files_changed']}",
             "",
-            "## Summary",
-            review_info["summary"],
-            "",
-            "## Review Results",
-            f"- **Total Issues:** {review_info['total_issues']}",
+            "## Raw Review Output",
+            review_info["raw_text"],
         ]
-
-        if review_info["overall_score"]:
-            summary_parts.append(
-                f"- **Overall Score:** {review_info['overall_score']}/10"
-            )
-
-        # Add severity breakdown
-        severity_counts = review_info["severity_counts"]
-        if any(count > 0 for count in severity_counts.values()):
-            summary_parts.append("")
-            summary_parts.append("### Issues by Severity")
-            for severity, count in severity_counts.items():
-                if count > 0:
-                    emoji = {
-                        "critical": "🔴",
-                        "high": "🟠",
-                        "medium": "🟡",
-                        "low": "🟢",
-                        "info": "ℹ️",
-                    }
-                    summary_parts.append(
-                        f"- {emoji.get(severity, '•')} **{severity.title()}:** {count}"
-                    )
 
         summary_parts.extend(
             [

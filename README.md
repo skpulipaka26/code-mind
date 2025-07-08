@@ -1,6 +1,6 @@
 # Turbo-Review
 
-AI-powered code review system using Qwen3 models for semantic code analysis and automated review generation.
+AI-powered code review system using Large Language models for semantic code analysis and automated review generation.
 
 ## Overview
 
@@ -10,19 +10,33 @@ Turbo-Review analyzes code repositories using Tree-sitter parsing, vector embedd
 
 - **Semantic Code Analysis**: Tree-sitter based parsing for Python, JavaScript, and TypeScript
 - **Vector Search**: FAISS-powered similarity search for relevant code context
-- **AI-Powered Reviews**: Qwen3 models via OpenRouter for intelligent code analysis
 - **Multi-Language Support**: Python, JavaScript, TypeScript, JSX, TSX files
 - **GitHub Integration**: Automated pull request reviews
 - **Observability**: Complete OpenTelemetry instrumentation with Grafana dashboards
 - **CLI Interface**: Simple command-line tools for local development
 
+## Quick Start
+
+```bash
+# 1. Install dependencies
+pip install uv
+uv sync
+
+# 2. Set up API key
+export OPENROUTER_API_KEY="your-api-key-here"
+
+# 3. Activate virtual environment
+source .venv/bin/activate
+
+# 4. Index your repository
+python -m cli.commands index ./my-project
+
+# 5. Create a diff and review it
+git diff > changes.diff
+python -m cli.commands review changes.diff
+```
+
 ## Installation
-
-### Prerequisites
-
-- Python 3.13+
-- OpenRouter API key
-- Docker and Docker Compose (for monitoring stack)
 
 ### Setup
 
@@ -48,25 +62,55 @@ export OTEL_EXPORTER_OTLP_ENDPOINT="http://localhost:4317"
 export OTEL_SERVICE_NAME="turbo-review"
 ```
 
+4. Create a configuration file (optional):
+```bash
+# Create config.json with your settings
+cat > config.json << EOF
+{
+  "openrouter_api_key": "your-api-key-here",
+  "embedding_model": "qwen/qwen3-embedding-0.6b",
+  "completion_model": "qwen/qwen2.5-coder-7b-instruct"
+}
+EOF
+```
+
 ## Usage
 
 ### Basic Commands
 
-The CLI provides three main commands:
+The system provides two main entry points:
 
-1. **Index a repository**:
+#### Option 1: CLI Commands (Recommended)
 ```bash
-turbo-review index /path/to/repository
+# Activate virtual environment
+source .venv/bin/activate
+
+# Index a repository
+python -m cli.commands index /path/to/repository
+
+# Review a diff file
+python -m cli.commands review changes.diff --index index
+
+# Quick review without indexing
+python -m cli.commands quick /path/to/repository changes.diff
 ```
 
-2. **Review a diff file**:
+#### Option 2: Main Script (Alternative)
 ```bash
-turbo-review review changes.diff --index myrepo
+# Activate virtual environment
+source .venv/bin/activate
+
+# Index a repository
+python main.py index /path/to/repository
+
+# Review a diff file
+python main.py review changes.diff
 ```
 
-3. **Quick review without indexing**:
+#### With Configuration File
 ```bash
-turbo-review quick /path/to/repository changes.diff
+# Use custom config file
+python -m cli.commands --config config.json index /path/to/repository
 ```
 
 ### Detailed Workflow
@@ -77,10 +121,11 @@ Index your codebase to enable context-aware reviews:
 
 ```bash
 # Index with default name 'index'
-turbo-review index ./my-project
+source .venv/bin/activate
+python -m cli.commands index ./my-project
 
 # Index with custom name
-turbo-review index ./my-project --output my-project-index
+python -m cli.commands index ./my-project --output my-project-index
 ```
 
 This command:
@@ -98,10 +143,11 @@ Create a diff file and review it:
 git diff > changes.diff
 
 # Review using indexed repository
-turbo-review review changes.diff --index my-project-index
+source .venv/bin/activate
+python -m cli.commands review changes.diff --index my-project-index
 
 # Review with repository context
-turbo-review review changes.diff --repo ./my-project
+python -m cli.commands review changes.diff --repo ./my-project
 ```
 
 The review process:
@@ -116,7 +162,8 @@ The review process:
 For immediate feedback without pre-indexing:
 
 ```bash
-turbo-review quick ./my-project changes.diff
+source .venv/bin/activate
+python -m cli.commands quick ./my-project changes.diff
 ```
 
 This mode:
@@ -128,16 +175,18 @@ This mode:
 
 Create a configuration file for persistent settings:
 
-```yaml
-# config.yaml
-openrouter_api_key: "your-api-key"
-embedding_model: "qwen/qwen3-embedding-0.6b"
-completion_model: "qwen/qwen2.5-coder-7b-instruct"
+```json
+{
+  "openrouter_api_key": "your-api-key",
+  "embedding_model": "qwen/qwen3-embedding-0.6b",
+  "completion_model": "qwen/qwen2.5-coder-7b-instruct"
+}
 ```
 
 Use with:
 ```bash
-turbo-review --config config.yaml index ./project
+source .venv/bin/activate
+python -m cli.commands --config config.json index ./project
 ```
 
 ### Environment Variables
@@ -165,17 +214,37 @@ turbo-review --config config.yaml index ./project
 The system can automatically review pull requests:
 
 ```python
-from integrations.github import GitHubIntegration
+from integrations.github import GitHubIntegration, GitHubConfig
+from cli.config import Config
 
-# Initialize with your GitHub app credentials
-github = GitHubIntegration(
-    app_id="your-app-id",
-    private_key="your-private-key",
-    webhook_secret="your-webhook-secret"
+# Initialize with your GitHub credentials
+github_config = GitHubConfig(
+    token="your-github-token",
+    repo_owner="your-repo-owner",
+    repo_name="your-repo-name"
 )
 
-# Process webhook events
-github.handle_pull_request_event(webhook_payload)
+github = GitHubIntegration(github_config)
+
+# Review a specific PR
+config = Config.load()
+review_result = await github.review_pull_request(
+    pr_number=123,
+    config=config,
+    focus_areas=["security", "performance", "bugs"]
+)
+
+# Post the review as a comment
+github.post_review_comment(123, review_result["review"]["raw_text"])
+```
+
+### Testing GitHub Integration
+
+Use the provided test script:
+
+```bash
+source .venv/bin/activate
+python test_github_integration.py
 ```
 
 ## Monitoring and Observability
@@ -190,11 +259,6 @@ cd docker
 2. Start all services:
 ```bash
 docker-compose up -d
-```
-
-3. Verify services are running:
-```bash
-./test-stack.sh
 ```
 
 ### Access Dashboards
@@ -247,6 +311,7 @@ The system automatically tracks:
 ### Running Tests
 
 ```bash
+source .venv/bin/activate
 uv run pytest tests/ -v
 ```
 
@@ -258,57 +323,19 @@ turbo-review/
 ├── core/                   # Core functionality (chunking, vector DB)
 ├── inference/              # AI model interfaces
 ├── processing/             # Diff processing and reranking
+├── services/               # Shared business logic (ReviewService)
 ├── integrations/           # GitHub/GitLab integrations
 ├── monitoring/             # OpenTelemetry instrumentation
+├── utils/                  # Logging and utilities
 ├── docker/                 # Observability stack
-└── tests/                  # Test suite
+├── tests/                  # Test suite
+└── main.py                 # Alternative entry point
 ```
 
 ### Adding New Languages
 
 To support additional programming languages:
 
-1. Install the Tree-sitter parser: `pip install tree-sitter-<language>`
+1. Install the Tree-sitter parser: `uv add tree-sitter-<language>`
 2. Add language detection in `TreeSitterChunker._detect_language()`
 3. Implement extraction logic in `TreeSitterChunker._extract_chunks()`
-
-## Troubleshooting
-
-### Common Issues
-
-**No API key configured**:
-```bash
-export OPENROUTER_API_KEY="your-key-here"
-```
-
-**Tree-sitter parsing errors**:
-- Ensure language parsers are installed
-- Check file encoding (UTF-8 required)
-- Verify syntax is valid
-
-**Vector database errors**:
-- Check available disk space
-- Ensure write permissions in current directory
-- Verify FAISS installation
-
-**Monitoring not working**:
-- Confirm Docker is running
-- Check port availability (3000, 4317, 9090, 16686)
-- Verify OTLP endpoint configuration
-
-### Performance Optimization
-
-- **Batch size**: Adjust embedding batch size based on memory
-- **Chunk limit**: Limit context chunks for large repositories
-- **Sampling**: Enable trace sampling for high-volume usage
-- **Caching**: Use persistent vector indices for repeated analysis
-
-## API Costs
-
-Estimated costs per operation:
-- Embedding generation: ~$0.00001 per token
-- Code review generation: ~$0.00002 per token
-- Typical repository indexing: $0.10-1.00
-- Typical review generation: $0.01-0.10
-
-Monitor costs in Grafana dashboards or check OpenRouter usage.

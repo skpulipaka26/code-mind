@@ -1,8 +1,10 @@
-from typing import List, Dict, Any, Optional
+from typing import List
 from dataclasses import dataclass
 from processing.diff_processor import ChangedChunk
 from processing.reranker import RerankedResult
+from utils.logging import get_logger
 
+logger = get_logger(__name__)
 
 @dataclass
 class ReviewPrompt:
@@ -70,6 +72,7 @@ Use clear sections and bullet points for readability.
             "Keep each section concise and actionable."
         ]
         
+        logger.debug(f"Built review prompt with diff length {len(diff_content)} and context length {len(context_section)}")
         return "\n".join(prompt_parts)
     
     def build_security_focused_prompt(self, diff_content: str, context_chunks: List[RerankedResult] = None) -> str:

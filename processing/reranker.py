@@ -1,7 +1,10 @@
 from typing import List, Dict, Tuple
 from dataclasses import dataclass
 from core.vectordb import VectorMetadata
-from inference.openrouter_client import OpenRouterClient
+from inference.openai_client import OpenRouterClient
+from utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -27,6 +30,7 @@ class CodeReranker:
     ) -> List[RerankedResult]:
         """Rerank search results by relevance."""
         if not search_results:
+            logger.debug("No search results to rerank.")
             return []
 
         # Prepare documents
