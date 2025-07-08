@@ -6,6 +6,10 @@ import tree_sitter_python as tspython
 import tree_sitter_javascript as tsjavascript
 import tree_sitter_typescript as tstypescript
 
+FILE_CHUNK_MAX_CHARS = 20000
+
+
+
 
 @dataclass
 class CodeChunk:
@@ -61,12 +65,25 @@ class TreeSitterChunker:
         if language not in self.parsers:
             return []
 
-        parser = self.parsers[language]
-        tree = parser.parse(bytes(content, "utf8"))
+        # If the file content is below the max character limit, treat the entire file as one chunk.
+        if len(content) <= FILE_CHUNK_MAX_CHARS:
+            return [CodeChunk(
+                content=content,
+                file_path=file_path,
+                start_line=1,
+                end_line=len(content.splitlines()),
+                chunk_type="file",
+                name=Path(file_path).name,
+                language=language,
+            )]
+        else:
+            # For larger files, proceed with AST-based chunking.
+            parser = self.parsers[language]
+            tree = parser.parse(bytes(content, "utf8"))
 
-        chunks = []
-        self._extract_chunks(tree.root_node, content, file_path, language, chunks)
-        return chunks
+            chunks = []
+            self._extract_chunks(tree.root_node, content, file_path, language, chunks)
+            return chunks
 
     def chunk_repository(self, repo_path: str) -> List[CodeChunk]:
         """Extract chunks from repository."""
@@ -126,11 +143,6 @@ class TreeSitterChunker:
             if chunk:
                 chunks.append(chunk)
 
-        elif node.type in ["import_statement", "import_from_statement"]:
-            chunk = self._create_chunk(node, content, file_path, "python", "import")
-            if chunk:
-                chunks.append(chunk)
-
         # Process children
         for child in node.children:
             self._extract_python_chunks(child, content, file_path, chunks)
@@ -155,17 +167,17 @@ class TreeSitterChunker:
             if chunk:
                 chunks.append(chunk)
 
-        elif node.type in ["import_statement", "import_declaration"]:
-            chunk = self._create_chunk(node, content, file_path, "javascript", "import")
-            if chunk:
-                chunks.append(chunk)
-
         # Process children
         for child in node.children:
             self._extract_js_chunks(child, content, file_path, chunks)
 
     def _create_chunk(
-        self, node: Node, content: str, file_path: str, language: str, chunk_type: str
+        self,
+        node: Node,
+        content: str,
+        file_path: str,
+        language: str,
+        chunk_type: str
     ) -> Optional[CodeChunk]:
         """Create chunk from AST node."""
         lines = content.split("\n")
@@ -176,6 +188,11 @@ class TreeSitterChunker:
             return None
 
         chunk_content = "\n".join(lines[start_line - 1 : end_line])
+        
+        # Ensure chunk content is not empty
+        if not chunk_content.strip():
+            return None
+
         name = self._extract_name(node, content)
 
         return CodeChunk(

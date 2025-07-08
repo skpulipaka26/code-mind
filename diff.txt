@@ -1,0 +1,280 @@
+diff --git a/docker/docker-compose.yml b/docker/docker-compose.yml
+index 4d66968..b9df761 100644
+--- a/docker/docker-compose.yml
++++ b/docker/docker-compose.yml
+@@ -1,5 +1,3 @@
+-version: '3.8'
+-
+ services:
+   # OpenTelemetry Collector
+   otel-collector:
+@@ -18,6 +16,11 @@ services:
+     depends_on:
+       - jaeger
+       - prometheus
++    healthcheck:
++      test: ["CMD", "curl", "-f", "http://localhost:13133/"]
++      interval: 10s
++      timeout: 5s
++      retries: 5
+ 
+   # Jaeger for distributed tracing
+   jaeger:
+@@ -67,6 +70,11 @@ services:
+     volumes:
+       - ./loki.yml:/etc/loki/local-config.yaml
+     command: -config.file=/etc/loki/local-config.yaml
++    healthcheck:
++      test: ["CMD", "curl", "-f", "http://localhost:3100/ready"]
++      interval: 10s
++      timeout: 5s
++      retries: 5
+ 
+   # Promtail for log collection
+   promtail:
+diff --git a/docker/loki.yml b/docker/loki.yml
+index c77bb5e..2e87562 100644
+--- a/docker/loki.yml
++++ b/docker/loki.yml
+@@ -46,4 +46,7 @@ ruler:
+ #
+ # If you would like to disable reporting, uncomment the following lines:
+ #analytics:
+-#  reporting_enabled: false
+\ No newline at end of file
++#  reporting_enabled: false
++
++limits_config:
++  allow_structured_metadata: false
+\ No newline at end of file
+diff --git a/docker/otel-collector.yml b/docker/otel-collector.yml
+index db62913..ec7025e 100644
+--- a/docker/otel-collector.yml
++++ b/docker/otel-collector.yml
+@@ -24,8 +24,8 @@ processors:
+     sampling_percentage: 100
+ 
+ exporters:
+-  # Export traces to Jaeger
+-  jaeger:
++  # Export traces to Jaeger via OTLP
++  otlp:
+     endpoint: jaeger:14250
+     tls:
+       insecure: true
+@@ -40,9 +40,8 @@ exporters:
+   loki:
+     endpoint: http://loki:3100/loki/api/v1/push
+ 
+-  # Debug logging
+-  logging:
+-    loglevel: debug
++  debug:
++    verbosity: detailed
+ 
+ extensions:
+   health_check:
+@@ -57,14 +56,14 @@ service:
+     traces:
+       receivers: [otlp]
+       processors: [batch, resource, probabilistic_sampler]
+-      exporters: [jaeger, logging]
++      exporters: [otlp, debug]
+     
+     metrics:
+       receivers: [otlp]
+       processors: [batch, resource]
+-      exporters: [prometheus, logging]
++      exporters: [prometheus, debug]
+     
+     logs:
+       receivers: [otlp]
+       processors: [batch, resource]
+-      exporters: [loki, logging]
+\ No newline at end of file
++      exporters: [loki, debug]
+\ No newline at end of file
+diff --git a/inference/openrouter_client.py b/inference/openrouter_client.py
+index 1c072c6..a6f399a 100644
+--- a/inference/openrouter_client.py
++++ b/inference/openrouter_client.py
+@@ -30,10 +30,10 @@ class RerankResponse:
+ 
+ 
+ class OpenRouterClient:
+-    """Simple OpenRouter client using OpenAI SDK."""
++    """Simple OpenRouter client using OpenAI SDK. Also supports a local embedding model."""
+ 
+     def __init__(self, api_key: str = None):
+-        self.client = AsyncOpenAI(
++        self.openrouter_client = AsyncOpenAI(
+             api_key=api_key or os.getenv("OPENROUTER_API_KEY"),
+             base_url="https://openrouter.ai/api/v1",
+             default_headers={
+@@ -42,17 +42,50 @@ class OpenRouterClient:
+             },
+         )
+ 
++        # For local model via LM Studio
++        self.local_client = AsyncOpenAI(
++            api_key="lm-studio",
++            base_url="http://127.0.0.1:1234/v1",
++        )
++        self.local_embedding_model_name = "text-embedding-qwen3-embedding-0.6b"
++        self.local_embedding_model_alias = "qwen/qwen3-embedding-0.6b"
++        self.local_completion_model_name = "qwen2.5-coder-7b-instruct"
++        self.local_completion_model_alias = "qwen/qwen2.5-coder-7b-instruct"
++
+     async def embed(
+         self, text: str, model: str = "qwen/qwen3-embedding-0.6b"
+     ) -> List[float]:
+         """Create embedding for text."""
+         telemetry = get_telemetry()
+ 
++        if model == self.local_embedding_model_alias:
++            with telemetry.trace_operation(
++                "local_embed",
++                {"model": self.local_embedding_model_name, "text_length": len(text)},
++            ):
++                start_time = time.time()
++                response = await self.local_client.embeddings.create(
++                    model=self.local_embedding_model_name, input=text
++                )
++                duration = time.time() - start_time
++
++                telemetry.increment_api_requests(
++                    {"model": self.local_embedding_model_name, "operation": "embed"}
++                )
++                telemetry.record_embedding_duration(
++                    duration,
++                    {"model": self.local_embedding_model_name, "batch_size": 1},
++                )
++                # No cost for local model
++                return response.data[0].embedding
++
+         with telemetry.trace_operation(
+             "openrouter_embed", {"model": model, "text_length": len(text)}
+         ):
+             start_time = time.time()
+-            response = await self.client.embeddings.create(model=model, input=text)
++            response = await self.openrouter_client.embeddings.create(
++                model=model, input=text
++            )
+             duration = time.time() - start_time
+ 
+             # Record API request and cost metrics
+@@ -77,11 +110,43 @@ class OpenRouterClient:
+         """Create embeddings for multiple texts."""
+         telemetry = get_telemetry()
+ 
++        if model == self.local_embedding_model_alias:
++            with telemetry.trace_operation(
++                "local_embed_batch",
++                {
++                    "model": self.local_embedding_model_name,
++                    "batch_size": len(texts),
++                },
++            ):
++                start_time = time.time()
++                response = await self.local_client.embeddings.create(
++                    model=self.local_embedding_model_name, input=texts
++                )
++                duration = time.time() - start_time
++
++                telemetry.increment_api_requests(
++                    {
++                        "model": self.local_embedding_model_name,
++                        "operation": "embed_batch",
++                    }
++                )
++                telemetry.record_embedding_duration(
++                    duration,
++                    {
++                        "model": self.local_embedding_model_name,
++                        "batch_size": len(texts),
++                    },
++                )
++                # No cost for local model
++                return [data.embedding for data in response.data]
++
+         with telemetry.trace_operation(
+             "openrouter_embed_batch", {"model": model, "batch_size": len(texts)}
+         ):
+             start_time = time.time()
+-            response = await self.client.embeddings.create(model=model, input=texts)
++            response = await self.openrouter_client.embeddings.create(
++                model=model, input=texts
++            )
+             duration = time.time() - start_time
+ 
+             # Record metrics
+@@ -114,10 +179,32 @@ class OpenRouterClient:
+         """Create completion."""
+         telemetry = get_telemetry()
+ 
++        if model == self.local_completion_model_alias:
++            with telemetry.trace_operation(
++                "local_complete",
++                {
++                    "model": self.local_completion_model_name,
++                    "message_count": len(messages),
++                },
++            ):
++                response = await self.local_client.chat.completions.create(
++                    model=self.local_completion_model_name,
++                    messages=messages,
++                    temperature=0.1,
++                    max_tokens=2048,
++                )
++                telemetry.increment_api_requests(
++                    {
++                        "model": self.local_completion_model_name,
++                        "operation": "complete",
++                    }
++                )
++                return response.choices[0].message.content
++
+         with telemetry.trace_operation(
+             "openrouter_complete", {"model": model, "message_count": len(messages)}
+         ):
+-            response = await self.client.chat.completions.create(
++            response = await self.openrouter_client.chat.completations.create(
+                 model=model, messages=messages, temperature=0.1, max_tokens=2048
+             )
+ 
+@@ -140,7 +247,7 @@ class OpenRouterClient:
+     async def rerank(
+         self, query: str, documents: List[str], top_k: int = 5
+     ) -> List[Dict[str, Any]]:
+         """Rerank documents using instruction model."""
+-        docs_text = "\n".join([f"{i + 1}. {doc}" for i, doc in enumerate(documents)])
++        docs_text = "\n".join([f'{i + 1}. {doc}' for i, doc in enumerate(documents)])
+ 
+         messages = [
+             {
+@@ -157,8 +264,8 @@ class OpenRouterClient:
+ 
+         # Parse rankings
+         try:
+-            rankings = [int(x.strip()) - 1 for x in response.split(",")]
+-            rankings = [r for r in rankings if 0 <= r < len(documents)][:top_k]
++            rankings = [int(x.strip()) - 1 for x in response.split(",")][:(top_k)]
++            rankings = [r for r in rankings if 0 <= r < len(documents)]
+         except Exception:
+             rankings = list(range(min(top_k, len(documents))))
+ 
+@@ -174,10 +281,11 @@ class OpenRouterClient:
+ 
+     async def close(self):
+         """Close client."""
+-        await self.client.close()
++        await self.openrouter_client.close()
++        await self.local_client.close()
+ 
+     async def __aenter__(self):
+         return self
+ 
+     async def __aexit__(self, exc_type, exc_val, exc_tb):
+-        await self.close()
++        await self.close()
+\ No newline at end of file
