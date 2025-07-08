@@ -1,0 +1,179 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Turbo Review - Overview",
+    "tags": ["turbo-review"],
+    "style": "dark",
+    "timezone": "browser",
+    "refresh": "5s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Review Duration",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(turbo_review_duration_seconds_bucket[5m]))",
+            "legendFormat": "95th percentile",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.50, rate(turbo_review_duration_seconds_bucket[5m]))",
+            "legendFormat": "50th percentile", 
+            "refId": "B"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "min": 0
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 0
+        }
+      },
+      {
+        "id": 2,
+        "title": "API Requests Rate",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "rate(turbo_api_requests_total[5m])",
+            "legendFormat": "Requests/sec",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "reqps",
+            "min": 0
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 0
+        }
+      },
+      {
+        "id": 3,
+        "title": "Total Cost",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "increase(turbo_cost_total[1h])",
+            "legendFormat": "Cost/hour",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "currencyUSD",
+            "min": 0
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 8
+        }
+      },
+      {
+        "id": 4,
+        "title": "Indexed Chunks",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "turbo_chunks_indexed",
+            "legendFormat": "Total chunks",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "min": 0
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 8
+        }
+      },
+      {
+        "id": 5,
+        "title": "Operation Latency",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(turbo_review_duration_seconds_bucket[5m]))",
+            "legendFormat": "Review p95",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(turbo_embedding_duration_seconds_bucket[5m]))",
+            "legendFormat": "Embedding p95",
+            "refId": "B"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(turbo_retrieval_duration_seconds_bucket[5m]))",
+            "legendFormat": "Retrieval p95",
+            "refId": "C"
+          }
+        ],
+        "yAxes": [
+          {
+            "unit": "s",
+            "min": 0
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 24,
+          "x": 0,
+          "y": 16
+        }
+      },
+      {
+        "id": 6,
+        "title": "Error Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(turbo_api_requests_total{status=~\"4..|5..\"}[5m]) / rate(turbo_api_requests_total[5m])",
+            "legendFormat": "Error rate",
+            "refId": "A"
+          }
+        ],
+        "yAxes": [
+          {
+            "unit": "percentunit",
+            "min": 0,
+            "max": 1
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 24,
+          "x": 0,
+          "y": 24
+        }
+      }
+    ],
+    "schemaVersion": 27,
+    "version": 1,
+    "links": []
+  }
+}

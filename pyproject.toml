@@ -1,7 +1,7 @@
 [project]
 name = "turbo-review"
 version = "0.1.0"
-description = "Add your description here"
+description = "AI-powered code review system using Qwen3 models"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
@@ -11,4 +11,48 @@ dependencies = [
     "tree-sitter-python>=0.23.6",
     "tree-sitter-typescript>=0.23.2",
     "unidiff>=0.7.5",
+    "openai>=1.0.0",
+    "faiss-cpu>=1.7.4",
+    "numpy>=1.24.0",
+    "httpx>=0.25.0",
+    "click>=8.0.0",
+    "python-dotenv>=1.0.0",
+    "GitPython>=3.1.40",
+    "requests>=2.31.0",
+    "opentelemetry-api>=1.20.0",
+    "opentelemetry-sdk>=1.20.0",
+    "opentelemetry-exporter-otlp>=1.20.0",
+    "opentelemetry-instrumentation>=0.41b0",
+    "opentelemetry-instrumentation-requests>=0.41b0",
+    "opentelemetry-instrumentation-httpx>=0.41b0",
+]
+
+[tool.setuptools.packages.find]
+include = ["cli*", "core*", "inference*", "processing*", "integrations*", "utils*", "monitoring*"]
+
+[project.scripts]
+turbo-review = "cli.commands:cli"
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[dependency-groups]
+test = [
+    "pytest>=8.4.1",
+    "pytest-asyncio>=1.0.0",
+    "pytest-cov>=6.2.1",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.0.0",
+]
+dev = [
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "flake8>=6.0.0",
+    "mypy>=1.0.0",
 ]

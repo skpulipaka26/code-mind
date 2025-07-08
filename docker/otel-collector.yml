@@ -1,0 +1,70 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+  
+  # Add service name and version attributes
+  resource:
+    attributes:
+      - key: service.name
+        value: turbo-review
+        action: upsert
+      - key: service.version
+        value: 0.1.0
+        action: upsert
+
+  # Sample traces (optional)
+  probabilistic_sampler:
+    sampling_percentage: 100
+
+exporters:
+  # Export traces to Jaeger
+  jaeger:
+    endpoint: jaeger:14250
+    tls:
+      insecure: true
+
+  # Export metrics to Prometheus
+  prometheus:
+    endpoint: "0.0.0.0:8889"
+    const_labels:
+      service: turbo-review
+
+  # Export logs to Loki
+  loki:
+    endpoint: http://loki:3100/loki/api/v1/push
+
+  # Debug logging
+  logging:
+    loglevel: debug
+
+extensions:
+  health_check:
+  pprof:
+    endpoint: 0.0.0.0:1888
+  zpages:
+    endpoint: 0.0.0.0:55679
+
+service:
+  extensions: [health_check, pprof, zpages]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch, resource, probabilistic_sampler]
+      exporters: [jaeger, logging]
+    
+    metrics:
+      receivers: [otlp]
+      processors: [batch, resource]
+      exporters: [prometheus, logging]
+    
+    logs:
+      receivers: [otlp]
+      processors: [batch, resource]
+      exporters: [loki, logging]
