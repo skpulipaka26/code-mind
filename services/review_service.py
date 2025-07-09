@@ -17,7 +17,7 @@ from graph_engine.search import Search
 
 from core.chunker import TreeSitterChunker
 from core.vectordb import VectorDatabase
-from inference.openai_client import OpenRouterClient
+from inference.openai_client import LLMClient
 from inference.prompt_builder import PromptBuilder
 from processing.diff_processor import DiffProcessor
 from processing.reranker import CodeReranker
@@ -87,7 +87,7 @@ class ReviewService:
                 return False
 
             # Generate embeddings
-            async with OpenRouterClient(api_key=self.config.openrouter_api_key, config=self.config) as client:
+            async with LLMClient(config=self.config) as client:
                 try:
                     with self.telemetry.trace_operation(
                         "generate_embeddings", {"chunk_count": len(chunks)}
@@ -189,7 +189,7 @@ class ReviewService:
                 search_engine = Search(kg)
 
             # Search and review
-            async with OpenRouterClient(api_key=self.config.openrouter_api_key, config=self.config) as client:
+            async with LLMClient(config=self.config) as client:
                 try:
                     # Search for related code
                     with self.telemetry.trace_operation("vector_search"):
@@ -312,7 +312,7 @@ class ReviewService:
         # Generate review using PromptBuilder
         review_prompt = self.prompt_builder.build_quick_review_prompt(diff_content)
 
-        async with OpenRouterClient(api_key=self.config.openrouter_api_key, config=self.config) as client:
+        async with LLMClient(config=self.config) as client:
             try:
                 review = await client.complete([{"role": "user", "content": review_prompt}])
                 

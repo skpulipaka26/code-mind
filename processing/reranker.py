@@ -1,7 +1,7 @@
 from typing import List, Dict, Tuple
 from dataclasses import dataclass
 from core.vectordb import VectorMetadata
-from inference.openai_client import OpenRouterClient
+from inference.openai_client import LLMClient
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -18,7 +18,7 @@ class RerankedResult:
 class CodeReranker:
     """Rerank code chunks for relevance."""
 
-    def __init__(self, client: OpenRouterClient):
+    def __init__(self, client: LLMClient):
         self.client = client
 
     async def rerank_search_results(

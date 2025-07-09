@@ -1,15 +1,12 @@
-import os
 import time
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
-from openai import AsyncOpenAI, APIConnectionError
-from dotenv import load_dotenv
+from openai import AsyncOpenAI
 from monitoring.telemetry import get_telemetry
 from utils.logging import get_logger
+from cli.config import ModelConfig
 
 logger = get_logger(__name__)
-
-load_dotenv()
 
 
 @dataclass
@@ -32,37 +29,12 @@ class RerankResponse:
     model: str
 
 
-class OpenRouterClient:
+class LLMClient:
     """Simple OpenRouter client using OpenAI SDK. Also supports a local embedding model."""
 
-    def __init__(self, api_key: str = None, config=None):
+    def __init__(self, config=None):
         self.config = config
-        self.openrouter_client = AsyncOpenAI(
-            api_key=api_key or os.getenv("OPENROUTER_API_KEY"),
-            base_url="https://openrouter.ai/api/v1",
-            default_headers={
-                "HTTP-Referer": "https://turbo-review.local",
-                "X-Title": "Turbo Review",
-            },
-        )
-
-        # For local model via LM Studio
-        self.local_client = AsyncOpenAI(
-            api_key="lm-studio",
-            base_url=config.local_model_base_url
-            if config
-            else "http://127.0.0.1:1234/v1",
-        )
-        self.local_embedding_model_name = (
-            config.local_embedding_model
-            if config
-            else "text-embedding-qwen3-embedding-0.6b"
-        )
-        self.local_embedding_model_alias = "qwen/qwen3-embedding-0.6b"
-        self.local_completion_model_name = (
-            config.local_completion_model if config else "qwen2.5-coder-7b-instruct"
-        )
-        self.local_completion_model_alias = "qwen/qwen2.5-coder-7b-instruct"
+        self._clients: Dict[str, AsyncOpenAI] = {}
 
     def _record_telemetry(self, operation: str, model: str, duration: float, **kwargs):
         """Helper to record telemetry data."""
@@ -73,108 +45,98 @@ class OpenRouterClient:
                 duration, {"model": model, "batch_size": kwargs["batch_size"]}
             )
 
-    async def embed(
-        self, text: str, model: str = "qwen/qwen3-embedding-0.6b"
-    ) -> List[float]:
+    def _get_client_for_model(self, model_config: ModelConfig) -> AsyncOpenAI:
+        """Returns an AsyncOpenAI client for the given model configuration, caching clients."""
+        client_key = f"{model_config.base_url}-{model_config.api_key}"
+        if client_key in self._clients:
+            return self._clients[client_key]
+
+        if not model_config.base_url:
+            raise ValueError(
+                f"Base URL not configured for model: {model_config.model_name}"
+            )
+
+        client = AsyncOpenAI(
+            api_key=model_config.api_key,
+            base_url=model_config.base_url,
+            default_headers={
+                "HTTP-Referer": "https://turbo-review.local",  # Or a more dynamic value
+                "X-Title": "Turbo Review",
+            },
+        )
+        self._clients[client_key] = client
+        logger.info(
+            f"Initialized client for model '{model_config.model_name}' with base URL: {model_config.base_url}"
+        )
+        return client
+
+    async def embed(self, text: str) -> List[float]:
         """Create embedding for text."""
         telemetry = get_telemetry()
+        model_config = self.config.embedding  # Get model config from self.config
+        client = self._get_client_for_model(model_config)
 
-        if model == self.local_embedding_model_alias:
-            with telemetry.trace_operation(
-                "local_embed",
-                {"model": self.local_embedding_model_name, "text_length": len(text)},
-            ):
-                try:
-                    start_time = time.time()
-                    response = await self.local_client.embeddings.create(
-                        model=self.local_embedding_model_name, input=text
-                    )
-                    duration = time.time() - start_time
-                    self._record_telemetry(
-                        "embed", self.local_embedding_model_name, duration, batch_size=1
-                    )
-                    logger.debug(
-                        f"Local embedding successful for text length {len(text)}"
-                    )
-                    return response.data[0].embedding
-                except APIConnectionError as e:
-                    logger.warning(
-                        f"Local embedding model unavailable, falling back to OpenRouter: {e}"
-                    )
-                    # Fallback to OpenRouter if local model is unavailable
-                    pass
+        operation_name = (
+            "local_embed"
+            if model_config.base_url == self.config.local_model_base_url
+            else "openrouter_embed"
+        )  # Adjust based on base_url
+        model_name_for_telemetry = model_config.model_name
 
         with telemetry.trace_operation(
-            "openrouter_embed", {"model": model, "text_length": len(text)}
+            operation_name,
+            {"model": model_name_for_telemetry, "text_length": len(text)},
         ):
             start_time = time.time()
-            response = await self.openrouter_client.embeddings.create(
-                model=model, input=text
+            response = await client.embeddings.create(
+                model=model_name_for_telemetry, input=text
             )
             duration = time.time() - start_time
 
-            # Record API request and cost metrics
-            self._record_telemetry("embed", model, duration, batch_size=1)
+            self._record_telemetry(
+                "embed", model_name_for_telemetry, duration, batch_size=1
+            )
             logger.debug(
-                f"OpenRouter embedding successful for model {model}, text length {len(text)}"
+                f"{operation_name.replace('_', ' ').title()} successful for model {model_name_for_telemetry}, text length {len(text)}"
             )
 
-            # Estimate cost based on tokens (approximate)
             if hasattr(response, "usage") and response.usage:
                 tokens = getattr(response.usage, "total_tokens", len(text.split()))
-                estimated_cost = tokens * 0.00001  # Rough estimate
+                estimated_cost = tokens * 0.00001
                 telemetry.record_cost(
-                    estimated_cost, {"model": model, "operation": "embed"}
+                    estimated_cost,
+                    {"model": model_name_for_telemetry, "operation": "embed"},
                 )
 
             return response.data[0].embedding
 
-    async def embed_batch(
-        self, texts: List[str], model: str = "qwen/qwen3-embedding-0.6b"
-    ) -> List[List[float]]:
+    async def embed_batch(self, texts: List[str]) -> List[List[float]]:
         """Create embeddings for multiple texts."""
         telemetry = get_telemetry()
+        model_config = self.config.embedding  # Get model config from self.config
+        client = self._get_client_for_model(model_config)
 
-        if model == self.local_embedding_model_alias:
-            with telemetry.trace_operation(
-                "local_embed_batch",
-                {
-                    "model": self.local_embedding_model_name,
-                    "batch_size": len(texts),
-                },
-            ):
-                try:
-                    start_time = time.time()
-                    response = await self.local_client.embeddings.create(
-                        model=self.local_embedding_model_name, input=texts
-                    )
-                    duration = time.time() - start_time
-                    self._record_telemetry(
-                        "embed_batch",
-                        self.local_embedding_model_name,
-                        duration,
-                        batch_size=len(texts),
-                    )
-                    return [data.embedding for data in response.data]
-                except APIConnectionError:
-                    # Fallback to OpenRouter
-                    pass
+        operation_name = (
+            "local_embed_batch"
+            if model_config.base_url == self.config.local_model_base_url
+            else "openrouter_embed_batch"
+        )
+        model_name_for_telemetry = model_config.model_name
 
         with telemetry.trace_operation(
-            "openrouter_embed_batch", {"model": model, "batch_size": len(texts)}
+            operation_name,
+            {"model": model_name_for_telemetry, "batch_size": len(texts)},
         ):
             start_time = time.time()
-            response = await self.openrouter_client.embeddings.create(
-                model=model, input=texts
+            response = await client.embeddings.create(
+                model=model_name_for_telemetry, input=texts
             )
             duration = time.time() - start_time
 
-            # Record metrics
             self._record_telemetry(
-                "embed_batch", model, duration, batch_size=len(texts)
+                "embed_batch", model_name_for_telemetry, duration, batch_size=len(texts)
             )
 
-            # Estimate cost
             if hasattr(response, "usage") and response.usage:
                 tokens = getattr(
                     response.usage,
@@ -183,7 +145,8 @@ class OpenRouterClient:
                 )
                 estimated_cost = tokens * 0.00001
                 telemetry.record_cost(
-                    estimated_cost, {"model": model, "operation": "embed_batch"}
+                    estimated_cost,
+                    {"model": model_name_for_telemetry, "operation": "embed_batch"},
                 )
 
             return [data.embedding for data in response.data]
@@ -191,57 +154,43 @@ class OpenRouterClient:
     async def complete(
         self,
         messages: List[Dict[str, str]],
-        model: str = "qwen/qwen2.5-coder-7b-instruct",
+        model_config: Optional[ModelConfig] = None,  # New parameter
     ) -> str:
         """Create completion."""
         telemetry = get_telemetry()
 
-        if model == self.local_completion_model_alias:
-            with telemetry.trace_operation(
-                "local_complete",
-                {
-                    "model": self.local_completion_model_name,
-                    "message_count": len(messages),
-                },
-            ):
-                try:
-                    response = await self.local_client.chat.completions.create(
-                        model=self.local_completion_model_name,
-                        messages=messages,
-                        temperature=self.config.review_temperature
-                        if self.config
-                        else 0.1,
-                        max_tokens=self.config.max_tokens if self.config else 2048,
-                    )
-                    self._record_telemetry(
-                        "complete", self.local_completion_model_name, 0
-                    )
-                    return response.choices[0].message.content
-                except APIConnectionError:
-                    # Fallback to OpenRouter
-                    pass
+        # Use provided model_config or default to self.config.completion
+        if model_config is None:
+            model_config = self.config.completion
+
+        client = self._get_client_for_model(model_config)
+
+        operation_name = (
+            "local_complete"
+            if model_config.base_url == self.config.local_model_base_url
+            else "openrouter_complete"
+        )
+        model_name_for_telemetry = model_config.model_name
 
         with telemetry.trace_operation(
-            "openrouter_complete", {"model": model, "message_count": len(messages)}
+            operation_name,
+            {"model": model_name_for_telemetry, "message_count": len(messages)},
         ):
-            response = await self.openrouter_client.chat.completions.create(
-                model=model,
+            response = await client.chat.completions.create(
+                model=model_name_for_telemetry,
                 messages=messages,
                 temperature=self.config.review_temperature if self.config else 0.1,
                 max_tokens=self.config.max_tokens if self.config else 2048,
             )
 
-            # Record metrics
-            self._record_telemetry("complete", model, 0)
+            self._record_telemetry("complete", model_name_for_telemetry, 0)
 
-            # Record cost if usage info is available
             if hasattr(response, "usage") and response.usage:
-                tokens = getattr(
-                    response.usage, "total_tokens", 1000
-                )  # Default fallback
-                estimated_cost = tokens * 0.00002  # Rough estimate for completion
+                tokens = getattr(response.usage, "total_tokens", 1000)
+                estimated_cost = tokens * 0.00002
                 telemetry.record_cost(
-                    estimated_cost, {"model": model, "operation": "complete"}
+                    estimated_cost,
+                    {"model": model_name_for_telemetry, "operation": "complete"},
                 )
 
             return response.choices[0].message.content
@@ -263,7 +212,7 @@ class OpenRouterClient:
             },
         ]
 
-        response = await self.complete(messages)
+        response = await self.complete(messages, model_config=self.config.rerank)
 
         # Parse rankings
         try:
@@ -285,8 +234,10 @@ class OpenRouterClient:
 
     async def close(self):
         """Close client."""
-        await self.openrouter_client.close()
-        await self.local_client.close()
+        if self._openrouter_client:
+            await self._openrouter_client.close()
+        if self._local_client:
+            await self._local_client.close()
 
     async def __aenter__(self):
         return self
