@@ -18,7 +18,8 @@ class Config:
     max_chunks: int = 20
     chunk_overlap: int = 5
     review_temperature: float = 0.1
-    vector_dimension: int = 896
+    vector_dimension: int = 1024
+    vector_db_path: str = "vector_db"
     
     # Logging configuration
     log_level: str = "INFO"

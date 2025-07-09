@@ -1,13 +1,14 @@
 # Turbo-Review
 
-AI-powered code review system using Large Language models for semantic code analysis and automated review generation.
+AI-powered code review system using Large Language models for semantic code analysis, knowledge graphs, and automated review generation.
 
 ## Overview
 
-Turbo-Review analyzes code repositories using Tree-sitter parsing, vector embeddings, and large language models to provide intelligent code reviews. The system can index entire repositories, process git diffs, and generate contextual feedback on code changes.
+Turbo-Review analyzes code repositories using Tree-sitter parsing, vector embeddings, a code-aware knowledge graph, and large language models to provide intelligent code reviews. The system can index entire repositories, process git diffs, and generate contextual feedback on code changes.
 
 ## Features
 
+- **Code-aware Knowledge Graph**: Builds a graph of code entities and relationships for enhanced context.
 - **Semantic Code Analysis**: Tree-sitter based parsing for Python, JavaScript, and TypeScript
 - **Vector Search**: FAISS-powered similarity search for relevant code context
 - **Multi-Language Support**: Python, JavaScript, TypeScript, JSX, TSX files
@@ -131,6 +132,7 @@ python -m cli.commands index ./my-project --output my-project-index
 This command:
 - Parses all Python, JavaScript, and TypeScript files
 - Extracts functions, classes, and imports using Tree-sitter
+- **Builds a code-aware knowledge graph (entities, relationships, claims)**
 - Generates embeddings using Qwen3-Embedding-0.6B
 - Stores vectors in a local FAISS database
 
@@ -153,6 +155,7 @@ python -m cli.commands review changes.diff --repo ./my-project
 The review process:
 - Parses the unified diff format
 - Identifies changed code chunks
+- **Loads the knowledge graph and uses it to find related code and community context**
 - Searches for relevant context using vector similarity
 - Reranks results using Qwen3 models
 - Generates a comprehensive code review
@@ -290,6 +293,10 @@ The system automatically tracks:
 ### Core Components
 
 - **TreeSitterChunker**: Extracts semantic code chunks (functions, classes, imports)
+- **KnowledgeGraph**: Represents code entities and relationships
+- **GraphBuilder**: Constructs the Knowledge Graph from code chunks
+- **HierarchicalSummarizer**: Generates multi-level summaries from the Knowledge Graph
+- **Search**: Performs global and local searches on the Knowledge Graph
 - **VectorDatabase**: FAISS-based storage for code embeddings
 - **OpenRouterClient**: Interface to Qwen3 models via OpenRouter API
 - **DiffProcessor**: Parses git diffs and identifies changed code
@@ -297,40 +304,78 @@ The system automatically tracks:
 
 ### Data Flow
 
-1. **Indexing**: Code → Tree-sitter → Chunks → Embeddings → Vector DB
-2. **Review**: Diff → Changed chunks → Vector search → Reranking → LLM → Review
+1. **Indexing**: Code → Tree-sitter → Chunks → **Knowledge Graph** & Embeddings → Vector DB
+2. **Review**: Diff → Changed chunks → **Knowledge Graph Lookup (Local Search, Summaries)** & Vector search → Reranking → LLM → Review
+
+### How it Works: Detailed Flow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant CLI
+    participant ReviewService
+    participant TreeSitterChunker
+    participant GraphBuilder
+    participant KnowledgeGraph
+    participant VectorDatabase
+    participant DiffProcessor
+    participant SearchEngine
+    participant Summarizer
+    participant PromptBuilder
+    participant OpenRouterClient
+
+    User->>CLI: turbo-review index <repo_path>
+    CLI->>ReviewService: index_repository(repo_path)
+    ReviewService->>TreeSitterChunker: chunk_repository(repo_path)
+    TreeSitterChunker-->>ReviewService: code_chunks
+    ReviewService->>GraphBuilder: build_graph_from_chunks(code_chunks)
+    GraphBuilder->>KnowledgeGraph: add_nodes_and_edges()
+    KnowledgeGraph-->>GraphBuilder: built_graph
+    GraphBuilder-->>ReviewService: built_graph
+    ReviewService->>ReviewService: save_knowledge_graph(built_graph)
+    ReviewService->>OpenRouterClient: embed_batch(code_chunks)
+    OpenRouterClient-->>ReviewService: embeddings
+    ReviewService->>VectorDatabase: add_chunks(code_chunks, embeddings)
+    VectorDatabase-->>ReviewService: indexed_db
+    ReviewService-->>CLI: Indexing Complete
+
+    User->>CLI: turbo-review review <diff_file>
+    CLI->>ReviewService: review_diff(diff_file)
+    ReviewService->>DiffProcessor: extract_changed_chunks(diff_content)
+    DiffProcessor-->>ReviewService: changed_chunks
+    ReviewService->>ReviewService: load_knowledge_graph()
+    ReviewService->>ReviewService: load_vector_database()
+
+    alt Knowledge Graph Loaded
+        ReviewService->>SearchEngine: local_search(changed_chunks)
+        SearchEngine-->>ReviewService: graph_search_results
+        ReviewService->>Summarizer: summarize_community(changed_chunks_communities)
+        Summarizer-->>ReviewService: community_summaries
+        ReviewService->>PromptBuilder: build_review_prompt(..., graph_context)
+    else Knowledge Graph Not Loaded
+        ReviewService->>PromptBuilder: build_review_prompt(...)
+    end
+
+    ReviewService->>OpenRouterClient: embed(query_from_diff)
+    OpenRouterClient-->>ReviewService: query_embedding
+    ReviewService->>VectorDatabase: search(query_embedding)
+    VectorDatabase-->>ReviewService: vector_search_results
+    ReviewService->>OpenRouterClient: rerank(vector_search_results)
+    OpenRouterClient-->>ReviewService: reranked_results
+    ReviewService->>PromptBuilder: build_review_prompt(diff_content, reranked_results, changed_chunks, ...)
+    PromptBuilder-->>ReviewService: final_prompt
+    ReviewService->>OpenRouterClient: complete(final_prompt)
+    OpenRouterClient-->>ReviewService: review_content
+    ReviewService-->>CLI: Review Result
+    CLI->>User: Display Review
+```
 
 ### Models Used
 
-- **Qwen3-Embedding-0.6B**: Code embeddings (896 dimensions)
+- **Qwen3-Embedding-0.6B**: Code embeddings (1024 dimensions)
 - **Qwen2.5-Coder-7B-Instruct**: Code review generation
 - **Qwen3-Reranker**: Result relevance scoring
 
-## Development
-
-### Running Tests
-
-```bash
-source .venv/bin/activate
-uv run pytest tests/ -v
-```
-
-### Code Structure
-
-```
-turbo-review/
-├── cli/                    # Command-line interface
-├── core/                   # Core functionality (chunking, vector DB)
-├── inference/              # AI model interfaces
-├── processing/             # Diff processing and reranking
-├── services/               # Shared business logic (ReviewService)
-├── integrations/           # GitHub/GitLab integrations
-├── monitoring/             # OpenTelemetry instrumentation
-├── utils/                  # Logging and utilities
-├── docker/                 # Observability stack
-├── tests/                  # Test suite
-└── main.py                 # Alternative entry point
-```
 
 ### Adding New Languages
 

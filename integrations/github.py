@@ -9,6 +9,7 @@ from monitoring.telemetry import setup_telemetry
 
 logger = get_logger(__name__)
 
+
 @dataclass
 class GitHubConfig:
     """GitHub integration configuration."""
@@ -47,7 +48,7 @@ class GitHubIntegration:
         )
 
         # Review service will be initialized with config when needed
-        
+
         # Initialize telemetry for GitHub integration
         setup_telemetry()
 
@@ -57,7 +58,9 @@ class GitHubIntegration:
 
         response = self.session.get(url)
         if response.status_code != 200:
-            logger.error(f"Failed to get PR {pr_number} info. Status: {response.status_code}")
+            logger.error(
+                f"Failed to get PR {pr_number} info. Status: {response.status_code}"
+            )
             return None
 
         data = response.json()
@@ -105,28 +108,28 @@ class GitHubIntegration:
 
         # Use ReviewService for consistent review logic
         review_service = ReviewService(config, logger)
-        
+
         # Create a temporary diff file for the service
         import tempfile
         import os
-        
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.diff', delete=False) as f:
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".diff", delete=False) as f:
             f.write(diff_content)
             temp_diff_path = f.name
-        
+
         try:
             # Use ReviewService to perform the review
             review_result = await review_service.review_diff(
                 diff_file=temp_diff_path,
                 index=index_path,
-                repo_path=None  # GitHub integration doesn't have local repo path
+                repo_path=None,  # GitHub integration doesn't have local repo path
             )
-            
+
             if not review_result:
                 return {"error": "Review service failed to generate review"}
-            
+
             review_text = review_result.review_content
-            
+
         finally:
             # Clean up temp file
             os.unlink(temp_diff_path)

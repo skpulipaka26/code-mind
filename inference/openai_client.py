@@ -11,6 +11,7 @@ logger = get_logger(__name__)
 
 load_dotenv()
 
+
 @dataclass
 class EmbeddingResponse:
     embedding: List[float]
@@ -48,16 +49,22 @@ class OpenRouterClient:
         # For local model via LM Studio
         self.local_client = AsyncOpenAI(
             api_key="lm-studio",
-            base_url=config.local_model_base_url if config else "http://127.0.0.1:1234/v1",
+            base_url=config.local_model_base_url
+            if config
+            else "http://127.0.0.1:1234/v1",
         )
-        self.local_embedding_model_name = config.local_embedding_model if config else "text-embedding-qwen3-embedding-0.6b"
+        self.local_embedding_model_name = (
+            config.local_embedding_model
+            if config
+            else "text-embedding-qwen3-embedding-0.6b"
+        )
         self.local_embedding_model_alias = "qwen/qwen3-embedding-0.6b"
-        self.local_completion_model_name = config.local_completion_model if config else "qwen2.5-coder-7b-instruct"
+        self.local_completion_model_name = (
+            config.local_completion_model if config else "qwen2.5-coder-7b-instruct"
+        )
         self.local_completion_model_alias = "qwen/qwen2.5-coder-7b-instruct"
 
-    def _record_telemetry(
-        self, operation: str, model: str, duration: float, **kwargs
-    ):
+    def _record_telemetry(self, operation: str, model: str, duration: float, **kwargs):
         """Helper to record telemetry data."""
         telemetry = get_telemetry()
         telemetry.increment_api_requests({"model": model, "operation": operation})
@@ -86,10 +93,14 @@ class OpenRouterClient:
                     self._record_telemetry(
                         "embed", self.local_embedding_model_name, duration, batch_size=1
                     )
-                    logger.debug(f"Local embedding successful for text length {len(text)}")
+                    logger.debug(
+                        f"Local embedding successful for text length {len(text)}"
+                    )
                     return response.data[0].embedding
                 except APIConnectionError as e:
-                    logger.warning(f"Local embedding model unavailable, falling back to OpenRouter: {e}")
+                    logger.warning(
+                        f"Local embedding model unavailable, falling back to OpenRouter: {e}"
+                    )
                     # Fallback to OpenRouter if local model is unavailable
                     pass
 
@@ -104,7 +115,9 @@ class OpenRouterClient:
 
             # Record API request and cost metrics
             self._record_telemetry("embed", model, duration, batch_size=1)
-            logger.debug(f"OpenRouter embedding successful for model {model}, text length {len(text)}")
+            logger.debug(
+                f"OpenRouter embedding successful for model {model}, text length {len(text)}"
+            )
 
             # Estimate cost based on tokens (approximate)
             if hasattr(response, "usage") and response.usage:
@@ -157,7 +170,9 @@ class OpenRouterClient:
             duration = time.time() - start_time
 
             # Record metrics
-            self._record_telemetry("embed_batch", model, duration, batch_size=len(texts))
+            self._record_telemetry(
+                "embed_batch", model, duration, batch_size=len(texts)
+            )
 
             # Estimate cost
             if hasattr(response, "usage") and response.usage:
@@ -193,7 +208,9 @@ class OpenRouterClient:
                     response = await self.local_client.chat.completions.create(
                         model=self.local_completion_model_name,
                         messages=messages,
-                        temperature=self.config.review_temperature if self.config else 0.1,
+                        temperature=self.config.review_temperature
+                        if self.config
+                        else 0.1,
                         max_tokens=self.config.max_tokens if self.config else 2048,
                     )
                     self._record_telemetry(
@@ -208,10 +225,10 @@ class OpenRouterClient:
             "openrouter_complete", {"model": model, "message_count": len(messages)}
         ):
             response = await self.openrouter_client.chat.completions.create(
-                model=model, 
-                messages=messages, 
+                model=model,
+                messages=messages,
                 temperature=self.config.review_temperature if self.config else 0.1,
-                max_tokens=self.config.max_tokens if self.config else 2048
+                max_tokens=self.config.max_tokens if self.config else 2048,
             )
 
             # Record metrics

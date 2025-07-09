@@ -19,7 +19,7 @@ def cli(ctx, config):
     ctx.obj["config"] = loaded_config
 
     # Initialize logging first
-    setup_logging(level=loaded_config.log_level, log_file=loaded_config.log_file)
+    setup_logging(level=loaded_config.log_level)
     ctx.obj["logger"] = get_logger(__name__)
 
     # Initialize telemetry
@@ -58,7 +58,9 @@ async def _index_repository(repo_path: str, output: str, config: Config, logger_
     """Index repository implementation."""
     service = ReviewService(config, logger_instance)
     success = await service.index_repository(repo_path, output)
-    if not success:
+    if success:
+        logger_instance.info(f"Repository '{repo_path}' indexed successfully to '{output}'")
+    else:
         logger_instance.error("Failed to index repository")
 
 
@@ -77,22 +79,22 @@ async def _review_diff(
         logger_instance.info(result.review_content)
         logger_instance.info("=" * 60)
     else:
-        click.echo("❌ Error during review")
+        logger_instance.error("❌ Error during review")
 
 
 async def _quick_review(repo_path: str, diff_file: str, config: Config, logger_instance):
     """Quick review without indexing."""
-    click.echo(f"⚡ Quick review: {diff_file}")
+    logger_instance.info(f"⚡ Quick review: {diff_file}")
     
     service = ReviewService(config, logger_instance)
     result = await service.quick_review(repo_path, diff_file)
     
     if result:
         # Display review
-        click.echo("\n" + "=" * 60)
-        click.echo("📋 QUICK CODE REVIEW")
-        click.echo("=" * 60)
-        click.echo(result.review_content)
-        click.echo("=" * 60)
+        logger_instance.info("\n" + "=" * 60)
+        logger_instance.info("📋 QUICK CODE REVIEW")
+        logger_instance.info("=" * 60)
+        logger_instance.info(result.review_content)
+        logger_instance.info("=" * 60)
     else:
-        click.echo("❌ Error during review")
+        logger_instance.error("❌ Error during review")

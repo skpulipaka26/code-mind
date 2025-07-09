@@ -22,7 +22,7 @@ async def index_repository(repo_path: str):
     config = Config.load()
     logger = get_logger()
     service = ReviewService(config, logger)
-    
+
     success = await service.index_repository(repo_path)
     if not success:
         logger.error("Failed to index repository")
@@ -34,14 +34,14 @@ async def review_diff(diff_file: str):
     config = Config.load()
     logger = get_logger()
     service = ReviewService(config, logger)
-    
+
     result = await service.review_diff(diff_file)
     if result:
-        logger.info("\n" + "="*50)
+        logger.info("\n" + "=" * 50)
         logger.info("CODE REVIEW")
-        logger.info("="*50)
+        logger.info("=" * 50)
         logger.info(result.review_content)
-        logger.info("="*50)
+        logger.info("=" * 50)
     else:
         logger.error("Failed to review diff")
         sys.exit(1)
@@ -50,15 +50,15 @@ async def review_diff(diff_file: str):
 def main():
     """Main entry point."""
     config = Config.load()
-    setup_logging(level=config.log_level, log_file=config.log_file)
+    setup_logging(level=config.log_level)
     logger = get_logger()
 
     if len(sys.argv) < 2:
         logger.info(__doc__)
         sys.exit(1)
-    
+
     command = sys.argv[1]
-    
+
     if command == "index" and len(sys.argv) > 2:
         asyncio.run(index_repository(sys.argv[2]))
     elif command == "review" and len(sys.argv) > 2:

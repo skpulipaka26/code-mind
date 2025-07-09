@@ -88,7 +88,8 @@ class VectorDatabase:
             faiss.write_index(self.index, f"{path}.faiss")
             with open(f"{path}.pkl", "wb") as f:
                 pickle.dump(
-                    {"metadata": self.metadata, "chunk_contents": self.chunk_contents}, f
+                    {"metadata": self.metadata, "chunk_contents": self.chunk_contents},
+                    f,
                 )
             logger.info(f"Vector database saved to {path}.faiss and {path}.pkl")
         except Exception as e:
