@@ -6,7 +6,7 @@ from utils.content_utils import smart_truncate, ensure_context_fits
 class HierarchicalSummarizer:
     def __init__(self, knowledge_graph: KnowledgeGraph, llm_client=None):
         self.kg = knowledge_graph
-        self.llm_client = llm_client  # Placeholder for LLM client
+        self.llm_client = llm_client
 
     async def summarize_chunk(self, chunk_node_id: str) -> str:
         """Generates a summary for a single code chunk."""

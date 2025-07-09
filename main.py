@@ -37,11 +37,15 @@ async def review_diff(diff_file: str):
 
     result = await service.review_diff(diff_file)
     if result:
-        logger.info("\n" + "=" * 50)
-        logger.info("CODE REVIEW")
-        logger.info("=" * 50)
-        logger.info(result.review_content)
-        logger.info("=" * 50)
+        logger.info(
+f"""
+================================
+CODE REVIEW
+================================
+{result.review_content}
+================================
+"""
+        )
     else:
         logger.error("Failed to review diff")
         sys.exit(1)

@@ -159,7 +159,7 @@ class ReviewService:
 
             # Load vector database
             try:
-                with self.telemetry.trace_operation("load_index"):
+                with self.telemetry.trace_operation("load_vector_db"):
                     db = VectorDatabase(dimension=self.config.vector_dimension)
                     db_path = str(Path(self.config.vector_db_path) / index)
                     db.load(db_path)

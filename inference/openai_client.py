@@ -60,7 +60,7 @@ class LLMClient:
             api_key=model_config.api_key,
             base_url=model_config.base_url,
             default_headers={
-                "HTTP-Referer": "https://turbo-review.local",  # Or a more dynamic value
+                "HTTP-Referer": "https://turbo-review.local",
                 "X-Title": "Turbo Review",
             },
         )
@@ -73,12 +73,13 @@ class LLMClient:
     async def embed(self, text: str) -> List[float]:
         """Create embedding for text."""
         telemetry = get_telemetry()
-        model_config = self.config.embedding  # Get model config from self.config
+        model_config = getattr(self.config, "embedding", None)
         client = self._get_client_for_model(model_config)
 
         operation_name = (
             "local_embed"
-            if "127.0.0.1" in model_config.base_url or "localhost" in model_config.base_url
+            if "127.0.0.1" in model_config.base_url
+            or "localhost" in model_config.base_url
             else "openrouter_embed"
         )
         model_name_for_telemetry = model_config.model_name
@@ -113,12 +114,13 @@ class LLMClient:
     async def embed_batch(self, texts: List[str]) -> List[List[float]]:
         """Create embeddings for multiple texts."""
         telemetry = get_telemetry()
-        model_config = self.config.embedding  # Get model config from self.config
+        model_config = getattr(self.config, "embedding", None)
         client = self._get_client_for_model(model_config)
 
         operation_name = (
             "local_embed_batch"
-            if "127.0.0.1" in model_config.base_url or "localhost" in model_config.base_url
+            if "127.0.0.1" in model_config.base_url
+            or "localhost" in model_config.base_url
             else "openrouter_embed_batch"
         )
         model_name_for_telemetry = model_config.model_name
@@ -154,20 +156,20 @@ class LLMClient:
     async def complete(
         self,
         messages: List[Dict[str, str]],
-        model_config: Optional[ModelConfig] = None,  # New parameter
+        model_config: Optional[ModelConfig] = None,
     ) -> str:
         """Create completion."""
         telemetry = get_telemetry()
 
-        # Use provided model_config or default to self.config.completion
         if model_config is None:
-            model_config = self.config.completion
+            model_config = getattr(self.config, "completion", None)
 
         client = self._get_client_for_model(model_config)
 
         operation_name = (
             "local_complete"
-            if "127.0.0.1" in model_config.base_url or "localhost" in model_config.base_url
+            if "127.0.0.1" in model_config.base_url
+            or "localhost" in model_config.base_url
             else "openrouter_complete"
         )
         model_name_for_telemetry = model_config.model_name
@@ -179,8 +181,8 @@ class LLMClient:
             response = await client.chat.completions.create(
                 model=model_name_for_telemetry,
                 messages=messages,
-                temperature=self.config.review_temperature if self.config else 0.1,
-                max_tokens=self.config.max_tokens if self.config else 2048,
+                temperature=getattr(self.config, "review_temperature", 0.1),
+                max_tokens=getattr(self.config, "max_tokens", 2048),
             )
 
             self._record_telemetry("complete", model_name_for_telemetry, 0)
@@ -212,7 +214,9 @@ class LLMClient:
             },
         ]
 
-        response = await self.complete(messages, model_config=self.config.rerank)
+        response = await self.complete(
+            messages, model_config=getattr(self.config, "rerank", None)
+        )
 
         # Parse rankings
         try:
@@ -240,5 +244,5 @@ class LLMClient:
     async def __aenter__(self):
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, *args):
         await self.close()
