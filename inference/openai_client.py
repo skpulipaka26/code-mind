@@ -78,9 +78,9 @@ class LLMClient:
 
         operation_name = (
             "local_embed"
-            if model_config.base_url == self.config.local_model_base_url
+            if "127.0.0.1" in model_config.base_url or "localhost" in model_config.base_url
             else "openrouter_embed"
-        )  # Adjust based on base_url
+        )
         model_name_for_telemetry = model_config.model_name
 
         with telemetry.trace_operation(
@@ -118,7 +118,7 @@ class LLMClient:
 
         operation_name = (
             "local_embed_batch"
-            if model_config.base_url == self.config.local_model_base_url
+            if "127.0.0.1" in model_config.base_url or "localhost" in model_config.base_url
             else "openrouter_embed_batch"
         )
         model_name_for_telemetry = model_config.model_name
@@ -167,7 +167,7 @@ class LLMClient:
 
         operation_name = (
             "local_complete"
-            if model_config.base_url == self.config.local_model_base_url
+            if "127.0.0.1" in model_config.base_url or "localhost" in model_config.base_url
             else "openrouter_complete"
         )
         model_name_for_telemetry = model_config.model_name
@@ -234,10 +234,8 @@ class LLMClient:
 
     async def close(self):
         """Close client."""
-        if self._openrouter_client:
-            await self._openrouter_client.close()
-        if self._local_client:
-            await self._local_client.close()
+        for client in self._clients.values():
+            await client.close()
 
     async def __aenter__(self):
         return self

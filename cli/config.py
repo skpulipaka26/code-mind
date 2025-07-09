@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
-from typing import Optional, field
-from dataclasses import dataclass
+from typing import Optional
+from dataclasses import dataclass, field
 import json
 from dotenv import load_dotenv
 from utils.logging import get_logger
