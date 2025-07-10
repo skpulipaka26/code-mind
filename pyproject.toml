@@ -60,6 +60,7 @@ packages = ["api", "cli", "core", "processing", "tests", "utils", "integrations"
 
 [project.scripts]
 codemind = "main:main"
+codemind-api = "api.main:main"
 
 [tool.pytest.ini_options]
 filterwarnings = [

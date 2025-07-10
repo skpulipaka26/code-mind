@@ -377,6 +377,102 @@ wheels = [
 ]
 
 [[package]]
+name = "codemind"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "aiohttp" },
+    { name = "asyncio" },
+    { name = "boto3" },
+    { name = "celery" },
+    { name = "click" },
+    { name = "faiss-cpu" },
+    { name = "fastapi" },
+    { name = "gitpython" },
+    { name = "jinja2" },
+    { name = "multilspy" },
+    { name = "neo4j" },
+    { name = "networkx", version = "3.4.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "networkx", version = "3.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "numpy", version = "2.3.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "openai" },
+    { name = "opentelemetry-api" },
+    { name = "opentelemetry-exporter-otlp" },
+    { name = "opentelemetry-instrumentation" },
+    { name = "opentelemetry-instrumentation-aiohttp-client" },
+    { name = "opentelemetry-instrumentation-httpx" },
+    { name = "opentelemetry-instrumentation-requests" },
+    { name = "opentelemetry-sdk" },
+    { name = "pydantic" },
+    { name = "python-dotenv" },
+    { name = "python-louvain" },
+    { name = "python-multipart" },
+    { name = "pyvis" },
+    { name = "qdrant-client" },
+    { name = "redis" },
+    { name = "tree-sitter" },
+    { name = "tree-sitter-javascript" },
+    { name = "tree-sitter-python" },
+    { name = "tree-sitter-typescript" },
+    { name = "unidiff" },
+    { name = "uvicorn" },
+]
+
+[package.optional-dependencies]
+dev = [
+    { name = "black" },
+    { name = "flake8" },
+    { name = "mypy" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "aiohttp", specifier = ">=3.8.0" },
+    { name = "asyncio", specifier = ">=3.4.3" },
+    { name = "black", marker = "extra == 'dev'", specifier = ">=23.0.0" },
+    { name = "boto3", specifier = ">=1.39.4" },
+    { name = "celery", specifier = ">=5.5.3" },
+    { name = "click", specifier = ">=8.0.0" },
+    { name = "faiss-cpu", specifier = ">=1.7.4" },
+    { name = "fastapi", specifier = ">=0.104.0" },
+    { name = "flake8", marker = "extra == 'dev'", specifier = ">=6.0.0" },
+    { name = "gitpython", specifier = ">=3.1.44" },
+    { name = "jinja2", specifier = ">=3.1.6" },
+    { name = "multilspy", specifier = ">=0.0.15" },
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.0.0" },
+    { name = "neo4j", specifier = ">=5.28.1" },
+    { name = "networkx", specifier = ">=3.0" },
+    { name = "numpy", specifier = ">=1.24.0" },
+    { name = "openai", specifier = ">=1.3.0" },
+    { name = "opentelemetry-api", specifier = ">=1.20.0" },
+    { name = "opentelemetry-exporter-otlp", specifier = ">=1.20.0" },
+    { name = "opentelemetry-instrumentation", specifier = ">=0.41b0" },
+    { name = "opentelemetry-instrumentation-aiohttp-client", specifier = ">=0.41b0" },
+    { name = "opentelemetry-instrumentation-httpx", specifier = ">=0.41b0" },
+    { name = "opentelemetry-instrumentation-requests", specifier = ">=0.41b0" },
+    { name = "opentelemetry-sdk", specifier = ">=1.20.0" },
+    { name = "pydantic", specifier = ">=2.0.0" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0.0" },
+    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.21.0" },
+    { name = "python-dotenv", specifier = ">=1.0.0" },
+    { name = "python-louvain", specifier = ">=0.16" },
+    { name = "python-multipart", specifier = ">=0.0.6" },
+    { name = "pyvis", specifier = ">=0.3.2" },
+    { name = "qdrant-client", specifier = ">=1.14.3" },
+    { name = "redis", specifier = ">=6.2.0" },
+    { name = "tree-sitter", specifier = ">=0.20.0" },
+    { name = "tree-sitter-javascript", specifier = ">=0.20.0" },
+    { name = "tree-sitter-python", specifier = ">=0.20.0" },
+    { name = "tree-sitter-typescript", specifier = ">=0.20.0" },
+    { name = "unidiff", specifier = ">=0.7.5" },
+    { name = "uvicorn", specifier = ">=0.24.0" },
+]
+provides-extras = ["dev"]
+
+[[package]]
 name = "colorama"
 version = "0.4.6"
 source = { registry = "https://pypi.org/simple" }
@@ -2087,102 +2183,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/8b/ab/dd84f0e2337296a5f09749f7b5483215d75c8fa9e33738522e5ed81f7254/tree_sitter_typescript-0.23.2-cp39-abi3-win_amd64.whl", hash = "sha256:3f730b66396bc3e11811e4465c41ee45d9e9edd6de355a58bbbc49fa770da8f9", size = 278015, upload-time = "2024-11-11T02:36:07.631Z" },
     { url = "https://files.pythonhosted.org/packages/9f/e4/81f9a935789233cf412a0ed5fe04c883841d2c8fb0b7e075958a35c65032/tree_sitter_typescript-0.23.2-cp39-abi3-win_arm64.whl", hash = "sha256:05db58f70b95ef0ea126db5560f3775692f609589ed6f8dd0af84b7f19f1cbb7", size = 274052, upload-time = "2024-11-11T02:36:09.514Z" },
 ]
-
-[[package]]
-name = "turbo-review"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "aiohttp" },
-    { name = "asyncio" },
-    { name = "boto3" },
-    { name = "celery" },
-    { name = "click" },
-    { name = "faiss-cpu" },
-    { name = "fastapi" },
-    { name = "gitpython" },
-    { name = "jinja2" },
-    { name = "multilspy" },
-    { name = "neo4j" },
-    { name = "networkx", version = "3.4.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
-    { name = "networkx", version = "3.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
-    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
-    { name = "numpy", version = "2.3.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
-    { name = "openai" },
-    { name = "opentelemetry-api" },
-    { name = "opentelemetry-exporter-otlp" },
-    { name = "opentelemetry-instrumentation" },
-    { name = "opentelemetry-instrumentation-aiohttp-client" },
-    { name = "opentelemetry-instrumentation-httpx" },
-    { name = "opentelemetry-instrumentation-requests" },
-    { name = "opentelemetry-sdk" },
-    { name = "pydantic" },
-    { name = "python-dotenv" },
-    { name = "python-louvain" },
-    { name = "python-multipart" },
-    { name = "pyvis" },
-    { name = "qdrant-client" },
-    { name = "redis" },
-    { name = "tree-sitter" },
-    { name = "tree-sitter-javascript" },
-    { name = "tree-sitter-python" },
-    { name = "tree-sitter-typescript" },
-    { name = "unidiff" },
-    { name = "uvicorn" },
-]
-
-[package.optional-dependencies]
-dev = [
-    { name = "black" },
-    { name = "flake8" },
-    { name = "mypy" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "aiohttp", specifier = ">=3.8.0" },
-    { name = "asyncio", specifier = ">=3.4.3" },
-    { name = "black", marker = "extra == 'dev'", specifier = ">=23.0.0" },
-    { name = "boto3", specifier = ">=1.39.4" },
-    { name = "celery", specifier = ">=5.5.3" },
-    { name = "click", specifier = ">=8.0.0" },
-    { name = "faiss-cpu", specifier = ">=1.7.4" },
-    { name = "fastapi", specifier = ">=0.104.0" },
-    { name = "flake8", marker = "extra == 'dev'", specifier = ">=6.0.0" },
-    { name = "gitpython", specifier = ">=3.1.44" },
-    { name = "jinja2", specifier = ">=3.1.6" },
-    { name = "multilspy", specifier = ">=0.0.15" },
-    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.0.0" },
-    { name = "neo4j", specifier = ">=5.28.1" },
-    { name = "networkx", specifier = ">=3.0" },
-    { name = "numpy", specifier = ">=1.24.0" },
-    { name = "openai", specifier = ">=1.3.0" },
-    { name = "opentelemetry-api", specifier = ">=1.20.0" },
-    { name = "opentelemetry-exporter-otlp", specifier = ">=1.20.0" },
-    { name = "opentelemetry-instrumentation", specifier = ">=0.41b0" },
-    { name = "opentelemetry-instrumentation-aiohttp-client", specifier = ">=0.41b0" },
-    { name = "opentelemetry-instrumentation-httpx", specifier = ">=0.41b0" },
-    { name = "opentelemetry-instrumentation-requests", specifier = ">=0.41b0" },
-    { name = "opentelemetry-sdk", specifier = ">=1.20.0" },
-    { name = "pydantic", specifier = ">=2.0.0" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0.0" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.21.0" },
-    { name = "python-dotenv", specifier = ">=1.0.0" },
-    { name = "python-louvain", specifier = ">=0.16" },
-    { name = "python-multipart", specifier = ">=0.0.6" },
-    { name = "pyvis", specifier = ">=0.3.2" },
-    { name = "qdrant-client", specifier = ">=1.14.3" },
-    { name = "redis", specifier = ">=6.2.0" },
-    { name = "tree-sitter", specifier = ">=0.20.0" },
-    { name = "tree-sitter-javascript", specifier = ">=0.20.0" },
-    { name = "tree-sitter-python", specifier = ">=0.20.0" },
-    { name = "tree-sitter-typescript", specifier = ">=0.20.0" },
-    { name = "unidiff", specifier = ">=0.7.5" },
-    { name = "uvicorn", specifier = ">=0.24.0" },
-]
-provides-extras = ["dev"]
 
 [[package]]
 name = "typing-extensions"

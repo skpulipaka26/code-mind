@@ -36,7 +36,7 @@ Traditional code analysis tools rely solely on Abstract Syntax Trees (AST) or ba
 - **Multi-Language Support**: Python, JavaScript, TypeScript, JSX, TSX files
 - **GitHub Integration**: Automated pull request reviews
 - **Observability**: Complete OpenTelemetry instrumentation with Grafana dashboards
-- **CLI Interface**: Simple command-line tools for local development
+- **Web Interface**: Modern web client for codebase interaction (coming soon)
 - **API Platform**: RESTful API for integration with external tools and services
 
 ## How It Works: Complete Architecture
@@ -100,15 +100,14 @@ uv sync
 # 2. Set up API key
 export OPENROUTER_API_KEY="your-api-key-here"
 
-# 3. Activate virtual environment
-source .venv/bin/activate
+# 3. Start the API server
+uv run codemind-api
 
-# 4. Index your repository (builds LSP-enhanced knowledge graph)
-python -m cli.commands index ./my-project
+# 4. Access the interactive API docs
+# Open http://localhost:8000/docs in your browser
 
-# 5. Create a diff and review it
-git diff > changes.diff
-python -m cli.commands review changes.diff
+# 5. Use the API to index repositories and chat with codebases
+# Web client coming soon for easier interaction
 ```
 
 ## Installation
@@ -139,13 +138,46 @@ export OTEL_SERVICE_NAME="codemind"
 
 ## Usage
 
-### Repository Indexing
+### Starting the API Server
 
-Index your codebase to enable context-aware reviews:
+CodeMind provides a REST API for integration with external tools:
 
 ```bash
-source .venv/bin/activate
-python -m cli.commands index ./my-project
+# Method 1: Using the convenience script
+uv run codemind-api
+
+# Method 2: Direct execution
+uv run python api/main.py
+
+# Method 3: Using uvicorn directly (for advanced options)
+uv run uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+The API will be available at `http://localhost:8000` with interactive docs at `http://localhost:8000/docs`.
+
+**Note**: A modern web client is in development to provide an intuitive interface for codebase interaction, repository management, and code reviews.
+
+### Repository Indexing
+
+Index your codebase via the API to enable context-aware reviews and chat:
+
+```bash
+# Using curl (or use the interactive docs at /docs)
+curl -X POST "http://localhost:8000/api/v1/repositories/" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "repo_url": "https://github.com/owner/repo",
+    "branch": "main"
+  }'
+
+# For private repositories, include access_token:
+curl -X POST "http://localhost:8000/api/v1/repositories/" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "repo_url": "https://github.com/owner/private-repo",
+    "branch": "main",
+    "access_token": "your-github-token"
+  }'
 ```
 
 **What happens during indexing:**
@@ -159,11 +191,13 @@ python -m cli.commands index ./my-project
 ### Code Review
 
 ```bash
-# Generate a diff file
-git diff > changes.diff
-
-# Review using LSP-enhanced knowledge graph
-python -m cli.commands review changes.diff
+# Review code changes via the API
+curl -X POST "http://localhost:8000/api/v1/reviews/" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "diff_content": "your-git-diff-content",
+    "repo_url": "https://github.com/owner/repo"
+  }'
 ```
 
 **Review process:**
@@ -174,12 +208,19 @@ python -m cli.commands review changes.diff
 5. **Context Enrichment**: Combines graph-based and vector-based context
 6. **LLM Review**: Generates comprehensive review with rich understanding
 
-### Quick Reviews
+### Codebase Chat
 
-For immediate feedback without pre-indexing:
+Ask questions about your indexed codebase:
 
 ```bash
-python -m cli.commands quick ./my-project changes.diff
+# Chat with your codebase via the API
+curl -X POST "http://localhost:8000/api/v1/conversations/" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "How does the authentication system work?",
+    "repo_url": "https://github.com/owner/repo",
+    "max_results": 5
+  }'
 ```
 
 ## Example: How LSP Enhances Analysis
@@ -302,13 +343,20 @@ docker-compose up -d
 - **Quality**: Dependency accuracy, summary relevance, review completeness
 - **Costs**: API usage by model and operation
 
+## API Documentation
+
+Once the server is running, you can:
+
+- **Interactive API Docs**: Visit `http://localhost:8000/docs` for Swagger UI
+- **Alternative Docs**: Visit `http://localhost:8000/redoc` for ReDoc interface
+- **OpenAPI Schema**: Available at `http://localhost:8000/openapi.json`
+
 ## Testing
 
 Run the comprehensive test suite:
 
 ```bash
-source .venv/bin/activate
-python -m pytest tests/ -v
+uv run pytest tests/ -v
 ```
 
 Tests cover:

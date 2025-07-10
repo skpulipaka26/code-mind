@@ -16,7 +16,6 @@ logger = get_logger(__name__)
 
 @dataclass
 class CodeChunk:
-    """Represents a code chunk with all its data."""
 
     content_hash: str
     content: str
@@ -33,7 +32,6 @@ class CodeChunk:
 
 @dataclass
 class RepositoryInfo:
-    """Information about a repository."""
     repo_url: str
     repo_name: str
     owner: str
@@ -45,12 +43,6 @@ class RepositoryInfo:
 
 
 class CodeMindDatabase:
-    """
-    Main database interface with native multi-repository support.
-    
-    Uses separate Qdrant collections and Neo4j labels for each repository
-    to ensure proper isolation and efficient querying.
-    """
 
     def __init__(
         self,
@@ -79,7 +71,6 @@ class CodeMindDatabase:
         self._ensure_repository_tracking()
 
     def _ensure_repository_tracking(self):
-        """Create repository tracking infrastructure."""
         with self.main_graph_store.driver.session() as session:
             # Create repository tracking constraints and indexes
             constraints = [
@@ -95,7 +86,6 @@ class CodeMindDatabase:
                     logger.debug(f"Repository constraint already exists: {e}")
 
     def _get_repo_identifier(self, repo_url: str) -> str:
-        """Generate a safe identifier for a repository."""
         # Parse GitHub URL to get owner/repo
         if "github.com" in repo_url:
             parsed = urlparse(repo_url)
@@ -113,7 +103,6 @@ class CodeMindDatabase:
         return hashlib.sha256(repo_url.encode()).hexdigest()[:16]
 
     def _get_vector_store(self, repo_url: str) -> QdrantVectorStore:
-        """Get or create vector store for a repository."""
         repo_id = self._get_repo_identifier(repo_url)
         collection_name = f"repo_{repo_id}"
         
@@ -128,7 +117,6 @@ class CodeMindDatabase:
         return self._vector_stores[collection_name]
 
     def _get_graph_store(self, repo_url: str) -> Neo4jGraphStore:
-        """Get or create graph store for a repository."""
         repo_id = self._get_repo_identifier(repo_url)
         
         if repo_id not in self._graph_stores:
@@ -192,7 +180,6 @@ class CodeMindDatabase:
         )
 
     def store_code_chunks(self, repo_url: str, chunks: List[CodeChunk]) -> bool:
-        """Store code chunks for a specific repository."""
         try:
             # Get repository-specific stores
             vector_store = self._get_vector_store(repo_url)
@@ -308,20 +295,7 @@ class CodeMindDatabase:
             return all_results[:limit]
 
     def list_repositories(self) -> List[RepositoryInfo]:
-        """List all registered repositories."""
         with self.main_graph_store.driver.session() as session:
-            query = """
-            MATCH (r:Repository)
-            RETURN r.repo_url as repo_url,
-                   r.repo_name as repo_name,
-                   r.owner as owner,
-                   r.branch as branch,
-                   r.indexed_at as indexed_at,
-                   r.chunk_count as chunk_count,
-                   r.collection_name as collection_name,
-                   r.graph_label as graph_label
-            ORDER BY r.indexed_at DESC
-            """
             
             result = session.run(query)
             repositories = []
@@ -341,7 +315,6 @@ class CodeMindDatabase:
             return repositories
 
     def delete_repository(self, repo_url: str) -> bool:
-        """Delete a repository and all its data."""
         try:
             repo_id = self._get_repo_identifier(repo_url)
             
@@ -382,7 +355,6 @@ class CodeMindDatabase:
             return False
 
     def get_repository_stats(self, repo_url: str) -> Dict[str, Any]:
-        """Get statistics for a specific repository."""
         try:
             vector_store = self._get_vector_store(repo_url)
             repo_id = self._get_repo_identifier(repo_url)
@@ -421,17 +393,10 @@ class CodeMindDatabase:
             return {}
 
     def _update_repository_stats(self, repo_url: str, chunk_count: int):
-        """Update repository statistics."""
         with self.main_graph_store.driver.session() as session:
-            query = """
-            MATCH (r:Repository {repo_url: $repo_url})
-            SET r.chunk_count = r.chunk_count + $chunk_count,
-                r.last_updated = datetime()
-            """
             session.run(query, repo_url=repo_url, chunk_count=chunk_count)
 
     def health_check(self) -> Dict[str, bool]:
-        """Check health of the multi-repo database system."""
         try:
             # Check main graph store
             graph_health = self.main_graph_store.health_check()
@@ -456,7 +421,6 @@ class CodeMindDatabase:
             return {"graph_db": False, "vector_db": False, "multi_repo_system": False}
 
     def close(self):
-        """Close all database connections."""
         # Close main graph store
         self.main_graph_store.close()
         

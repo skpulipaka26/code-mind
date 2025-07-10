@@ -18,20 +18,19 @@ logger = get_logger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan manager."""
     # Startup
     logger.info("Starting CodeMind API...")
-    
+
     # Initialize global config and database
     config = Config.load()
     database = CodeMindDatabase()
-    
+
     # Store in app state
     app.state.config = config
     app.state.database = database
-    
+
     yield
-    
+
     # Shutdown
     logger.info("Shutting down CodeMind API...")
 
@@ -41,7 +40,7 @@ app = FastAPI(
     title="CodeMind API",
     description="AI-powered codebase intelligence platform",
     version="0.1.0",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 # Add CORS middleware
@@ -54,28 +53,34 @@ app.add_middleware(
 )
 
 # Include routers
-app.include_router(repositories.router, prefix="/api/v1/repositories", tags=["repositories"])
+app.include_router(
+    repositories.router, prefix="/api/v1/repositories", tags=["repositories"]
+)
 app.include_router(reviews.router, prefix="/api/v1/reviews", tags=["reviews"])
-app.include_router(conversations.router, prefix="/api/v1/conversations", tags=["conversations"])
+app.include_router(
+    conversations.router, prefix="/api/v1/conversations", tags=["conversations"]
+)
 app.include_router(github.router, prefix="/api/v1/webhooks", tags=["webhooks"])
 
 
 @app.get("/")
 async def root():
-    """Root endpoint."""
-    return {
-        "message": "CodeMind API",
-        "version": "0.1.0",
-        "docs": "/docs"
-    }
+    return {"message": "CodeMind API", "version": "0.1.0", "docs": "/docs"}
 
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint."""
     return {"status": "healthy"}
 
 
-if __name__ == "__main__":
+def main():
+    """Start the CodeMind API server."""
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+
+    uvicorn.run(
+        "api.main:app", host="0.0.0.0", port=8000, reload=True, log_level="info"
+    )
+
+
+if __name__ == "__main__":
+    main()

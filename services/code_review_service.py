@@ -19,7 +19,6 @@ from utils.logging import get_logger
 
 @dataclass
 class ReviewResult:
-    """Result of a code review operation."""
     review_content: str
     changed_chunks_count: int
     context_chunks_count: int
@@ -28,15 +27,6 @@ class ReviewResult:
 
 
 class CodeReviewService:
-    """
-    Specialized service for AI-powered code reviews.
-    
-    This service handles:
-    - Context-aware diff reviews using indexed codebase
-    - Quick reviews without context
-    - PR review generation
-    - Review quality analysis
-    """
 
     def __init__(self, config, logger_instance=None, codebase_service=None):
         self.config = config
@@ -162,15 +152,6 @@ class CodeReviewService:
                     return None
 
     async def quick_review(self, diff_content: str) -> Optional[ReviewResult]:
-        """
-        Perform a quick review without codebase context.
-        
-        Args:
-            diff_content: The diff content to review
-            
-        Returns:
-            ReviewResult with review details
-        """
         review_start = time.time()
         self.logger.info("Performing quick review")
 

@@ -7,7 +7,6 @@ def setup_logging(
     level: str = "INFO",
     format_string: Optional[str] = None,
 ) -> logging.Logger:
-    """Set up logging configuration."""
 
     if format_string is None:
         format_string = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -32,7 +31,6 @@ def setup_logging(
 
 
 def get_logger(name: str = "codemind") -> logging.Logger:
-    """Get logger instance."""
     logger = logging.getLogger(name)
     logger.propagate = True
     return logger
