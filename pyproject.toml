@@ -28,6 +28,15 @@ dependencies = [
     "networkx>=3.0",
     "python-louvain>=0.16",
     "python-dotenv>=1.0.0",
+    "multilspy>=0.0.15",
+    "pyvis>=0.3.2",
+    "jinja2>=3.1.6",
+    "celery>=5.5.3",
+    "redis>=6.2.0",
+    "gitpython>=3.1.44",
+    "boto3>=1.39.4",
+    "qdrant-client>=1.14.3",
+    "neo4j>=5.28.1",
 ]
 
 [project.optional-dependencies]

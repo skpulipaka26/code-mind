@@ -31,25 +31,4 @@ class KnowledgeGraph:
             if data.get("type") == node_type
         ]
 
-    def detect_communities(self, algorithm="louvain"):
-        if algorithm == "louvain":
-            try:
-                import community as co
 
-                partition = co.best_partition(self.graph)
-                communities = {}
-                for node, comm_id in partition.items():
-                    if comm_id not in communities:
-                        communities[comm_id] = []
-                    communities[comm_id].append(node)
-                return communities
-            except ImportError:
-                print(
-                    "python-louvain not installed. Please install it using 'pip install python-louvain'"
-                )
-                return None
-        else:
-            raise ValueError(f"Unsupported community detection algorithm: {algorithm}")
-
-    def get_subgraph(self, nodes):
-        return self.graph.subgraph(nodes)

@@ -1,0 +1,3860 @@
+diff --git a/README.md b/README.md
+index ec4d6ed..0c16537 100644
+--- a/README.md
++++ b/README.md
+@@ -1,21 +1,93 @@
+ # Turbo-Review
+ 
+-AI-powered code review system using Large Language models for semantic code analysis, knowledge graphs, and automated review generation.
++AI-powered code review system using Hierarchical Code Graph Summarization (HCGS) with LSP-enhanced dependency resolution for semantic code analysis and automated review generation.
+ 
+ ## Overview
+ 
+-Turbo-Review analyzes code repositories using Tree-sitter parsing, vector embeddings, a code-aware knowledge graph, and large language models to provide intelligent code reviews. The system can index entire repositories, process git diffs, and generate contextual feedback on code changes.
++Turbo-Review revolutionizes code review by combining Tree-sitter parsing with Language Server Protocol (LSP) analysis to build precise knowledge graphs of code relationships. The system implements Hierarchical Code Graph Summarization (HCGS) for multi-level code understanding and generates contextual feedback on code changes using large language models.
++
++## Key Innovation: Hybrid Tree-sitter + LSP Architecture
++
++### Why This Approach?
++
++Traditional code analysis tools rely solely on Abstract Syntax Trees (AST) or basic pattern matching, which cannot accurately resolve cross-file dependencies or understand semantic relationships. Turbo-Review combines the best of both worlds:
++
++**Tree-sitter** provides:
++- Fast, reliable parsing of code structure
++- Language-agnostic chunk extraction (functions, classes, imports)
++- Robust handling of syntax errors
++- Precise line boundaries and metadata
++
++**LSP (Language Server Protocol)** adds:
++- Precise cross-file symbol resolution
++- Type-aware dependency analysis
++- Accurate function call tracking
++- Import resolution to actual modules
++- Class inheritance and instantiation detection
+ 
+ ## Features
+ 
+-- **Code-aware Knowledge Graph**: Builds a graph of code entities and relationships for enhanced context.
+-- **Semantic Code Analysis**: Tree-sitter based parsing for Python, JavaScript, and TypeScript
++- **LSP-Powered Dependency Resolution**: Uses Language Server Protocol for accurate symbol definitions, references, and dependency analysis
++- **Hierarchical Code Graph Summarization (HCGS)**: Multi-level code understanding with bottom-up summarization strategy
++- **Hybrid Analysis Engine**: Combines Tree-sitter parsing with LSP semantic analysis
++- **Rich Knowledge Graph**: Builds detailed graphs of code entities with precise relationships (calls, imports, inherits, instantiates, uses)
+ - **Vector Search**: FAISS-powered similarity search for relevant code context
+ - **Multi-Language Support**: Python, JavaScript, TypeScript, JSX, TSX files
+ - **GitHub Integration**: Automated pull request reviews
+ - **Observability**: Complete OpenTelemetry instrumentation with Grafana dashboards
+ - **CLI Interface**: Simple command-line tools for local development
+ 
++## How It Works: Complete Architecture
++
++### 1. Code Analysis Pipeline
++
++```mermaid
++graph TD
++    A[Source Code Files] --> B[Tree-sitter Parser]
++    B --> C[CodeChunk Objects]
++    C --> D[GraphBuilder]
++    D --> E[LSPResolver]
++    E --> F[Language Server]
++    F --> G[Precise Dependencies]
++    G --> H[Enhanced Knowledge Graph]
++    C --> I[Vector Embeddings]
++    H --> J[Hierarchical Summarization]
++    I --> K[Vector Database]
++    J --> L[Review Context]
++    K --> L
++    L --> M[LLM Review Generation]
++```
++
++### 2. Dependency Types Detected
++
++The LSP-enhanced system identifies precise relationships:
++
++- **`calls`**: Function and method invocations with exact targets
++- **`imports`**: Module and package imports resolved to actual files
++- **`inherits`**: Class inheritance relationships across files
++- **`instantiates`**: Class instantiations with type resolution
++- **`uses`**: General symbol usage and variable references
++
++### 3. Hierarchical Code Graph Summarization (HCGS)
++
++**Bottom-Up Analysis Strategy:**
++1. **Leaf Node Summarization**: Start with functions/classes that have no dependencies
++2. **Dependency-Aware Summarization**: When summarizing a function, include summaries of all functions it calls
++3. **Community Detection**: Group related code chunks into communities for collective analysis
++4. **Multi-Level Context**: Provides chunk-level, community-level, and global-level summaries
++
++**Example:**
++```python
++# utils/helpers.py
++def validate_data(data):  # ← Summarized first (leaf node)
++    return data is not None
++
++# models/user.py  
++def create_user(name):
++    if validate_data(name):  # ← Summary includes validate_data summary
++        return User(name)
++```
++
+ ## Quick Start
+ 
+ ```bash
+@@ -29,7 +101,7 @@ export OPENROUTER_API_KEY="your-api-key-here"
+ # 3. Activate virtual environment
+ source .venv/bin/activate
+ 
+-# 4. Index your repository
++# 4. Index your repository (builds LSP-enhanced knowledge graph)
+ python -m cli.commands index ./my-project
+ 
+ # 5. Create a diff and review it
+@@ -63,324 +135,192 @@ export OTEL_EXPORTER_OTLP_ENDPOINT="http://localhost:4317"
+ export OTEL_SERVICE_NAME="turbo-review"
+ ```
+ 
+-4. Create a configuration file (optional):
+-```bash
+-# Create config.json with your settings
+-cat > config.json << EOF
+-{
+-  "openrouter_api_key": "your-api-key-here",
+-  "embedding_model": "qwen/qwen3-embedding-0.6b",
+-  "completion_model": "qwen/qwen2.5-coder-7b-instruct"
+-}
+-EOF
+-```
+-
+ ## Usage
+ 
+-### Basic Commands
+-
+-The system provides two main entry points:
+-
+-#### Option 1: CLI Commands (Recommended)
+-```bash
+-# Activate virtual environment
+-source .venv/bin/activate
+-
+-# Index a repository
+-python -m cli.commands index /path/to/repository
+-
+-# Review a diff file
+-python -m cli.commands review changes.diff --index index
+-
+-# Quick review without indexing
+-python -m cli.commands quick /path/to/repository changes.diff
+-```
+-
+-#### Option 2: Main Script (Alternative)
+-```bash
+-# Activate virtual environment
+-source .venv/bin/activate
+-
+-# Index a repository
+-python main.py index /path/to/repository
+-
+-# Review a diff file
+-python main.py review changes.diff
+-```
+-
+-#### With Configuration File
+-```bash
+-# Use custom config file
+-python -m cli.commands --config config.json index /path/to/repository
+-```
+-
+-### Detailed Workflow
+-
+-#### 1. Repository Indexing
++### Repository Indexing
+ 
+ Index your codebase to enable context-aware reviews:
+ 
+ ```bash
+-# Index with default name 'index'
+ source .venv/bin/activate
+ python -m cli.commands index ./my-project
+-
+-# Index with custom name
+-python -m cli.commands index ./my-project --output my-project-index
+ ```
+ 
+-This command:
+-- Parses all Python, JavaScript, and TypeScript files
+-- Extracts functions, classes, and imports using Tree-sitter
+-- **Builds a code-aware knowledge graph (entities, relationships, claims)**
+-- Generates embeddings using Qwen3-Embedding-0.6B
+-- Stores vectors in a local FAISS database
+-
+-#### 2. Reviewing Changes
++**What happens during indexing:**
++1. **Tree-sitter Parsing**: Extracts all functions, classes, and imports
++2. **LSP Analysis**: Language server resolves precise dependencies
++3. **Knowledge Graph Construction**: Builds graph with accurate relationships
++4. **Hierarchical Summarization**: Creates multi-level code summaries
++5. **Vector Embedding**: Generates embeddings for similarity search
++6. **Storage**: Saves enhanced graph and vectors for review use
+ 
+-Create a diff file and review it:
++### Code Review
+ 
+ ```bash
+ # Generate a diff file
+ git diff > changes.diff
+ 
+-# Review using indexed repository
+-source .venv/bin/activate
+-python -m cli.commands review changes.diff --index my-project-index
+-
+-# Review with repository context
+-python -m cli.commands review changes.diff --repo ./my-project
++# Review using LSP-enhanced knowledge graph
++python -m cli.commands review changes.diff
+ ```
+ 
+-The review process:
+-- Parses the unified diff format
+-- Identifies changed code chunks
+-- **Loads the knowledge graph and uses it to find related code and community context**
+-- Searches for relevant context using vector similarity
+-- Reranks results using Qwen3 models
+-- Generates a comprehensive code review
++**Review process:**
++1. **Diff Analysis**: Parses unified diff format and identifies changed chunks
++2. **Graph Lookup**: Finds related code using LSP-enhanced dependency graph
++3. **Hierarchical Context**: Retrieves summaries of dependent and dependent-upon code
++4. **Vector Search**: Finds semantically similar code for additional context
++5. **Context Enrichment**: Combines graph-based and vector-based context
++6. **LLM Review**: Generates comprehensive review with rich understanding
+ 
+-#### 3. Quick Reviews
++### Quick Reviews
+ 
+ For immediate feedback without pre-indexing:
+ 
+ ```bash
+-source .venv/bin/activate
+ python -m cli.commands quick ./my-project changes.diff
+ ```
+ 
+-This mode:
+-- Analyzes only the changed files
+-- Provides contextual review without vector search
+-- Faster execution but less comprehensive context
++## Example: How LSP Enhances Analysis
+ 
+-### Configuration
++### Input Code:
++```python
++# file1.py
++from utils.helpers import process_data
++from models.user import User
++
++def create_user(name: str):
++    user = User(name)
++    result = process_data(user.data)
++    return result
++```
+ 
+-Create a configuration file for persistent settings:
++### Tree-sitter Extracts:
++- Function chunk: `create_user` (lines 4-7)
++- Import statements identified
++- Structural boundaries defined
+ 
+-```json
+-{
+-  "openrouter_api_key": "your-api-key",
+-  "embedding_model": "qwen/qwen3-embedding-0.6b",
+-  "completion_model": "qwen/qwen2.5-coder-7b-instruct"
+-}
+-```
++### LSP Resolves:
++- `User(name)` → Links to actual `User` class in `models/user.py`
++- `process_data(user.data)` → Links to function in `utils/helpers.py`
++- `user.data` → Resolves property access with type information
+ 
+-Use with:
+-```bash
+-source .venv/bin/activate
+-python -m cli.commands --config config.json index ./project
++### Knowledge Graph Result:
++```
++create_user --CALLS--> process_data
++create_user --INSTANTIATES--> User
++create_user --IMPORTS--> utils.helpers
++create_user --IMPORTS--> models.user
+ ```
+ 
+-### Environment Variables
++### Hierarchical Summary:
++When reviewing changes to `create_user`, the system includes:
++- Summary of `process_data` function (what it does, how it works)
++- Summary of `User` class (its properties, methods, purpose)
++- Community summary of related user management code
++- Impact analysis on dependent code
+ 
+-- `OPENROUTER_API_KEY`: Your OpenRouter API key (required)
+-- `OTEL_EXPORTER_OTLP_ENDPOINT`: OpenTelemetry endpoint for monitoring
+-- `OTEL_SERVICE_NAME`: Service name for telemetry (default: turbo-review)
+-- `OTEL_SERVICE_VERSION`: Service version for telemetry
++## Architecture
+ 
+-## GitHub Integration
++### Core Components
+ 
+-### Setup GitHub App
++- **TreeSitterChunker**: Extracts semantic code chunks (functions, classes, imports)
++- **LSPResolver**: Uses Language Server Protocol for accurate dependency resolution and symbol analysis
++- **KnowledgeGraph**: Represents code entities and precise relationships
++- **GraphBuilder**: Constructs enhanced knowledge graphs using efficient chunk-to-node mapping
++- **HierarchicalSummarizer**: Generates multi-level summaries with dependency-aware bottom-up strategy
++- **Search**: Performs global and local searches on the LSP-enhanced knowledge graph
++- **VectorDatabase**: FAISS-based storage for code embeddings
++- **OpenRouterClient**: Interface to Qwen3 models via OpenRouter API
++- **DiffProcessor**: Parses git diffs and identifies changed code
++- **CodeReranker**: Improves search results using relevance scoring
+ 
+-1. Create a GitHub App with the following permissions:
+-   - Contents: Read
+-   - Pull requests: Read & Write
+-   - Metadata: Read
++### Data Flow
+ 
+-2. Install the app on your repositories
++1. **Indexing**: Code → Tree-sitter → Chunks → **LSP Analysis** → **Enhanced Knowledge Graph** → **Hierarchical Summaries** → Embeddings → Vector DB
++2. **Review**: Diff → Changed chunks → **LSP-Enhanced Graph Lookup** → **Hierarchical Context** → Vector search → Reranking → **Context-Rich LLM Review**
+ 
+-3. Configure webhook endpoint for pull request events
++### Performance Optimizations
+ 
+-### Automated Reviews
++- **Efficient Mapping**: O(1) chunk-to-node lookups using pre-built mappings
++- **Batch Processing**: LSP analysis grouped by file for efficiency
++- **Smart Caching**: Hierarchical summaries stored in graph nodes
++- **Parallel Processing**: Vector embedding generation in batches
+ 
+-The system can automatically review pull requests:
++## Models Used
++
++- **Qwen3-Embedding-0.6B**: Code embeddings (1024 dimensions)
++- **Qwen2.5-Coder-7B-Instruct**: Code review generation and summarization
++- **Qwen3-Reranker**: Result relevance scoring
++
++## GitHub Integration
++
++### Automated Reviews
+ 
+ ```python
+ from integrations.github import GitHubIntegration, GitHubConfig
+ from cli.config import Config
+ 
+-# Initialize with your GitHub credentials
++# Initialize with GitHub credentials
+ github_config = GitHubConfig(
+     token="your-github-token",
+-    repo_owner="your-repo-owner",
++    repo_owner="your-repo-owner", 
+     repo_name="your-repo-name"
+ )
+ 
+ github = GitHubIntegration(github_config)
+ 
+-# Review a specific PR
++# Review a PR with LSP-enhanced analysis
+ config = Config.load()
+ review_result = await github.review_pull_request(
+     pr_number=123,
+     config=config,
+     focus_areas=["security", "performance", "bugs"]
+ )
+-
+-# Post the review as a comment
+-github.post_review_comment(123, review_result["review"]["raw_text"])
+-```
+-
+-### Testing GitHub Integration
+-
+-Use the provided test script:
+-
+-```bash
+-source .venv/bin/activate
+-python test_github_integration.py
+ ```
+ 
+ ## Monitoring and Observability
+ 
+ ### Starting the Monitoring Stack
+ 
+-1. Navigate to the docker directory:
+ ```bash
+ cd docker
+-```
+-
+-2. Start all services:
+-```bash
+ docker-compose up -d
+ ```
+ 
+ ### Access Dashboards
+ 
+ - **Grafana**: http://localhost:3000 (admin/admin)
+-  - Pre-configured dashboards for Turbo-Review metrics
+-  - Performance monitoring and cost tracking
+-  - Error rate analysis
+-
+-- **Jaeger**: http://localhost:16686
+-  - Distributed tracing for request flows
+-  - Performance bottleneck identification
+-
++- **Jaeger**: http://localhost:16686  
+ - **Prometheus**: http://localhost:9090
+-  - Raw metrics and alerting
+-  - Query interface for custom analysis
+ 
+ ### Key Metrics
+ 
+-The system automatically tracks:
++- **Performance**: LSP analysis time, hierarchical summarization duration, review generation time
++- **Usage**: Dependencies resolved, graph nodes created, summaries generated
++- **Quality**: Dependency accuracy, summary relevance, review completeness
++- **Costs**: API usage by model and operation
+ 
+-- **Performance**: Review duration, embedding generation time, vector search latency
+-- **Usage**: API request counts, processed chunks, repository sizes
+-- **Costs**: Estimated API costs by model and operation
+-- **Errors**: Failed requests, parsing errors, API failures
++## Testing
+ 
+-## Architecture
++Run the comprehensive test suite:
+ 
+-### Core Components
+-
+-- **TreeSitterChunker**: Extracts semantic code chunks (functions, classes, imports)
+-- **KnowledgeGraph**: Represents code entities and relationships
+-- **GraphBuilder**: Constructs the Knowledge Graph from code chunks
+-- **HierarchicalSummarizer**: Generates multi-level summaries from the Knowledge Graph
+-- **Search**: Performs global and local searches on the Knowledge Graph
+-- **VectorDatabase**: FAISS-based storage for code embeddings
+-- **OpenRouterClient**: Interface to Qwen3 models via OpenRouter API
+-- **DiffProcessor**: Parses git diffs and identifies changed code
+-- **CodeReranker**: Improves search results using relevance scoring
+-
+-### Data Flow
+-
+-1. **Indexing**: Code → Tree-sitter → Chunks → **Knowledge Graph** & Embeddings → Vector DB
+-2. **Review**: Diff → Changed chunks → **Knowledge Graph Lookup (Local Search, Summaries)** & Vector search → Reranking → LLM → Review
+-
+-### How it Works: Detailed Flow
+-
+-```mermaid
+-sequenceDiagram
+-    participant User
+-    participant CLI
+-    participant ReviewService
+-    participant TreeSitterChunker
+-    participant GraphBuilder
+-    participant KnowledgeGraph
+-    participant VectorDatabase
+-    participant DiffProcessor
+-    participant SearchEngine
+-    participant Summarizer
+-    participant PromptBuilder
+-    participant OpenRouterClient
+-
+-    User->>CLI: turbo-review index <repo_path>
+-    CLI->>ReviewService: index_repository(repo_path)
+-    ReviewService->>TreeSitterChunker: chunk_repository(repo_path)
+-    TreeSitterChunker-->>ReviewService: code_chunks
+-    ReviewService->>GraphBuilder: build_graph_from_chunks(code_chunks)
+-    GraphBuilder->>KnowledgeGraph: add_nodes_and_edges()
+-    KnowledgeGraph-->>GraphBuilder: built_graph
+-    GraphBuilder-->>ReviewService: built_graph
+-    ReviewService->>ReviewService: save_knowledge_graph(built_graph)
+-    ReviewService->>OpenRouterClient: embed_batch(code_chunks)
+-    OpenRouterClient-->>ReviewService: embeddings
+-    ReviewService->>VectorDatabase: add_chunks(code_chunks, embeddings)
+-    VectorDatabase-->>ReviewService: indexed_db
+-    ReviewService-->>CLI: Indexing Complete
+-
+-    User->>CLI: turbo-review review <diff_file>
+-    CLI->>ReviewService: review_diff(diff_file)
+-    ReviewService->>DiffProcessor: extract_changed_chunks(diff_content)
+-    DiffProcessor-->>ReviewService: changed_chunks
+-    ReviewService->>ReviewService: load_knowledge_graph()
+-    ReviewService->>ReviewService: load_vector_database()
+-
+-    alt Knowledge Graph Loaded
+-        ReviewService->>SearchEngine: local_search(changed_chunks)
+-        SearchEngine-->>ReviewService: graph_search_results
+-        ReviewService->>Summarizer: summarize_community(changed_chunks_communities)
+-        Summarizer-->>ReviewService: community_summaries
+-        ReviewService->>PromptBuilder: build_review_prompt(..., graph_context)
+-    else Knowledge Graph Not Loaded
+-        ReviewService->>PromptBuilder: build_review_prompt(...)
+-    end
+-
+-    ReviewService->>OpenRouterClient: embed(query_from_diff)
+-    OpenRouterClient-->>ReviewService: query_embedding
+-    ReviewService->>VectorDatabase: search(query_embedding)
+-    VectorDatabase-->>ReviewService: vector_search_results
+-    ReviewService->>OpenRouterClient: rerank(vector_search_results)
+-    OpenRouterClient-->>ReviewService: reranked_results
+-    ReviewService->>PromptBuilder: build_review_prompt(diff_content, reranked_results, changed_chunks, ...)
+-    PromptBuilder-->>ReviewService: final_prompt
+-    ReviewService->>OpenRouterClient: complete(final_prompt)
+-    OpenRouterClient-->>ReviewService: review_content
+-    ReviewService-->>CLI: Review Result
+-    CLI->>User: Display Review
++```bash
++source .venv/bin/activate
++python -m pytest tests/ -v
+ ```
+ 
+-### Models Used
+-
+-- **Qwen3-Embedding-0.6B**: Code embeddings (1024 dimensions)
+-- **Qwen2.5-Coder-7B-Instruct**: Code review generation
+-- **Qwen3-Reranker**: Result relevance scoring
+-
++Tests cover:
++- LSP resolver functionality
++- Knowledge graph construction
++- Hierarchical summarization
++- Dependency resolution accuracy
++- Integration workflows
+ 
+-### Adding New Languages
++## Adding New Languages
+ 
+ To support additional programming languages:
+ 
+-1. Install the Tree-sitter parser: `uv add tree-sitter-<language>`
++1. Install Tree-sitter parser: `uv add tree-sitter-<language>`
+ 2. Add language detection in `TreeSitterChunker._detect_language()`
+ 3. Implement extraction logic in `TreeSitterChunker._extract_chunks()`
++4. Configure LSP server in `LSPResolver` (multilspy supports many languages)
+diff --git a/cli/commands.py b/cli/commands.py
+deleted file mode 100644
+index 10b79e1..0000000
+--- a/cli/commands.py
++++ /dev/null
+@@ -1,100 +0,0 @@
+-import asyncio
+-from typing import Optional
+-
+-import click
+-from utils.logging import get_logger, setup_logging
+-
+-from cli.config import Config
+-from services.review_service import ReviewService
+-from monitoring.telemetry import setup_telemetry
+-
+-
+-@click.group()
+-@click.option("--config", "-c", help="Config file path")
+-@click.pass_context
+-def cli(ctx, config):
+-    """Turbo Review - AI-powered code review system."""
+-    ctx.ensure_object(dict)
+-    loaded_config = Config.load(config)
+-    ctx.obj["config"] = loaded_config
+-
+-    # Initialize logging first
+-    setup_logging(level=loaded_config.log_level)
+-    ctx.obj["logger"] = get_logger(__name__)
+-
+-    # Initialize telemetry
+-    setup_telemetry()
+-
+-
+-@cli.command()
+-@click.argument("repo_path", type=click.Path(exists=True))
+-@click.option("--output", "-o", default="index", help="Output index name")
+-@click.pass_context
+-def index(ctx, repo_path: str, output: str):
+-    """Index a repository for code review."""
+-    asyncio.run(_index_repository(repo_path, output, ctx.obj["config"], ctx.obj["logger"]))
+-
+-
+-@cli.command()
+-@click.argument("diff_file", type=click.Path(exists=True))
+-@click.option("--index", "-i", default="index", help="Index to use")
+-@click.option("--repo", "-r", help="Repository path")
+-@click.pass_context
+-def review(ctx, diff_file: str, index: str, repo: Optional[str]):
+-    """Review a diff file."""
+-    asyncio.run(_review_diff(diff_file, index, repo, ctx.obj["config"], ctx.obj["logger"]))
+-
+-
+-@cli.command()
+-@click.argument("repo_path", type=click.Path(exists=True))
+-@click.argument("diff_file", type=click.Path(exists=True))
+-@click.pass_context
+-def quick(ctx, repo_path: str, diff_file: str):
+-    """Quick review without pre-indexing."""
+-    asyncio.run(_quick_review(repo_path, diff_file, ctx.obj["config"], ctx.obj["logger"]))
+-
+-
+-async def _index_repository(repo_path: str, output: str, config: Config, logger_instance):
+-    """Index repository implementation."""
+-    service = ReviewService(config, logger_instance)
+-    success = await service.index_repository(repo_path, output)
+-    if success:
+-        logger_instance.info(f"Repository '{repo_path}' indexed successfully to '{output}'")
+-    else:
+-        logger_instance.error("Failed to index repository")
+-
+-
+-async def _review_diff(
+-    diff_file: str, index: str, repo_path: Optional[str], config: Config, logger_instance
+-):
+-    """Review diff implementation."""
+-    service = ReviewService(config, logger_instance)
+-    result = await service.review_diff(diff_file, index, repo_path)
+-    
+-    if result:
+-        # Display review
+-        logger_instance.info("\n" + "=" * 60)
+-        logger_instance.info("📋 CODE REVIEW")
+-        logger_instance.info("=" * 60)
+-        logger_instance.info(result.review_content)
+-        logger_instance.info("=" * 60)
+-    else:
+-        logger_instance.error("❌ Error during review")
+-
+-
+-async def _quick_review(repo_path: str, diff_file: str, config: Config, logger_instance):
+-    """Quick review without indexing."""
+-    logger_instance.info(f"⚡ Quick review: {diff_file}")
+-    
+-    service = ReviewService(config, logger_instance)
+-    result = await service.quick_review(repo_path, diff_file)
+-    
+-    if result:
+-        # Display review
+-        logger_instance.info("\n" + "=" * 60)
+-        logger_instance.info("📋 QUICK CODE REVIEW")
+-        logger_instance.info("=" * 60)
+-        logger_instance.info(result.review_content)
+-        logger_instance.info("=" * 60)
+-    else:
+-        logger_instance.error("❌ Error during review")
+diff --git a/cli/config.py b/cli/config.py
+index 9d03c84..58aa446 100644
+--- a/cli/config.py
++++ b/cli/config.py
+@@ -4,12 +4,9 @@ from typing import Optional
+ from dataclasses import dataclass, field
+ import json
+ from dotenv import load_dotenv
+-from utils.logging import get_logger
+ 
+ load_dotenv()
+ 
+-logger = get_logger(__name__)
+-
+ @dataclass
+ class ModelConfig:
+     model_name: str
+@@ -81,7 +78,7 @@ class Config:
+                         elif hasattr(config, key):
+                             setattr(config, key, value)
+             except Exception as e:
+-                logger.warning(f"Could not load config file: {e}")
++                print(f"Warning: Could not load config file: {e}")
+ 
+         # Apply default API key to individual models if not specified
+         if default_openrouter_api_key:
+diff --git a/core/chunker.py b/core/chunker.py
+index d499181..1b76c33 100644
+--- a/core/chunker.py
++++ b/core/chunker.py
+@@ -198,17 +198,8 @@ class TreeSitterChunker:
+             current_parent_type = "class"
+ 
+         elif node.type in ["import_statement", "import_from_statement"]:
+-            chunk = self._create_chunk(
+-                node,
+-                content,
+-                file_path,
+-                "python",
+-                "import",
+-                parent_name=parent_name,
+-                parent_type=parent_type,
+-            )
+-            if chunk:
+-                chunks.append(chunk)
++            # Skip individual import statements - they're not useful for code review
++            pass
+ 
+         for child in node.children:
+             self._extract_python_chunks(
+@@ -433,6 +424,7 @@ class TreeSitterChunker:
+             ".pytest_cache",
+             "site-packages",
+             "typings",
++            "lib",  # Skip library/vendor files
+         }
+ 
+         for part in file_path.parts:
+diff --git a/core/vectordb.py b/core/vectordb.py
+deleted file mode 100644
+index f9ae192..0000000
+--- a/core/vectordb.py
++++ /dev/null
+@@ -1,121 +0,0 @@
+-import os
+-import pickle
+-from typing import List, Dict, Any, Optional, Tuple
+-from dataclasses import dataclass
+-import numpy as np
+-import faiss
+-from core.chunker import CodeChunk
+-from utils.logging import get_logger
+-
+-logger = get_logger(__name__)
+-
+-
+-@dataclass
+-class VectorMetadata:
+-    chunk_id: str
+-    file_path: str
+-    start_line: int
+-    end_line: int
+-    chunk_type: str
+-    name: Optional[str] = None
+-    language: str = "python"
+-
+-
+-class VectorDatabase:
+-    """Simple FAISS vector database for code chunks."""
+-
+-    def __init__(self, dimension: int = 1024):
+-        self.dimension = dimension
+-        self.index = faiss.IndexFlatIP(dimension)
+-        self.metadata: List[VectorMetadata] = []
+-        self.chunk_contents: Dict[str, str] = {}
+-
+-    def add_chunks(self, chunks: List[CodeChunk], embeddings: List[List[float]]):
+-        """Add chunks with embeddings to database."""
+-        if len(chunks) != len(embeddings):
+-            logger.error("Chunks and embeddings must have same length")
+-            raise ValueError("Chunks and embeddings must have same length")
+-
+-        logger.info(f"Adding {len(chunks)} chunks to vector database.")
+-
+-        # Normalize and add embeddings
+-        embeddings_array = np.array(embeddings, dtype=np.float32)
+-        faiss.normalize_L2(embeddings_array)
+-        self.index.add(embeddings_array)
+-
+-        # Store metadata and content
+-        for chunk in chunks:
+-            chunk_id = f"{chunk.file_path}:{chunk.start_line}:{chunk.end_line}"
+-            metadata = VectorMetadata(
+-                chunk_id=chunk_id,
+-                file_path=chunk.file_path,
+-                start_line=chunk.start_line,
+-                end_line=chunk.end_line,
+-                chunk_type=chunk.chunk_type,
+-                name=chunk.name,
+-                language=chunk.language,
+-            )
+-            self.metadata.append(metadata)
+-            self.chunk_contents[chunk_id] = chunk.content
+-
+-    def search(
+-        self, query_embedding: List[float], k: int = 10
+-    ) -> List[Tuple[VectorMetadata, float]]:
+-        """Search for similar chunks."""
+-        if self.index.ntotal == 0:
+-            return []
+-
+-        # Normalize and search
+-        query_array = np.array([query_embedding], dtype=np.float32)
+-        faiss.normalize_L2(query_array)
+-        scores, indices = self.index.search(query_array, k)
+-
+-        # Return results
+-        results = []
+-        for score, idx in zip(scores[0], indices[0]):
+-            if idx < len(self.metadata):
+-                results.append((self.metadata[idx], float(score)))
+-
+-        return results
+-
+-    def get_content(self, chunk_id: str) -> Optional[str]:
+-        """Get content for a chunk."""
+-        return self.chunk_contents.get(chunk_id)
+-
+-    def save(self, path: str):
+-        """Save database to disk."""
+-        try:
+-            faiss.write_index(self.index, f"{path}.faiss")
+-            with open(f"{path}.pkl", "wb") as f:
+-                pickle.dump(
+-                    {"metadata": self.metadata, "chunk_contents": self.chunk_contents},
+-                    f,
+-                )
+-            logger.info(f"Vector database saved to {path}.faiss and {path}.pkl")
+-        except Exception as e:
+-            logger.error(f"Error saving vector database: {e}", exc_info=True)
+-
+-    def load(self, path: str):
+-        """Load database from disk."""
+-        try:
+-            if os.path.exists(f"{path}.faiss"):
+-                self.index = faiss.read_index(f"{path}.faiss")
+-                logger.info(f"Loaded FAISS index from {path}.faiss")
+-
+-            if os.path.exists(f"{path}.pkl"):
+-                with open(f"{path}.pkl", "rb") as f:
+-                    data = pickle.load(f)
+-                    self.metadata = data["metadata"]
+-                    self.chunk_contents = data["chunk_contents"]
+-                logger.info(f"Loaded metadata and chunk contents from {path}.pkl")
+-        except Exception as e:
+-            logger.error(f"Error loading vector database: {e}")
+-
+-    def stats(self) -> Dict[str, Any]:
+-        """Get database statistics."""
+-        return {
+-            "total_chunks": len(self.metadata),
+-            "dimension": self.dimension,
+-            "languages": list(set(m.language for m in self.metadata)),
+-            "chunk_types": list(set(m.chunk_type for m in self.metadata)),
+-        }
+diff --git a/graph_engine/graph_builder.py b/graph_engine/graph_builder.py
+deleted file mode 100644
+index 9d445d5..0000000
+--- a/graph_engine/graph_builder.py
++++ /dev/null
+@@ -1,50 +0,0 @@
+-from typing import List
+-from core.chunker import CodeChunk
+-from graph_engine.knowledge_graph import KnowledgeGraph
+-
+-
+-class GraphBuilder:
+-    def __init__(self, knowledge_graph: KnowledgeGraph):
+-        self.kg = knowledge_graph
+-
+-    def build_graph_from_chunks(self, chunks: List[CodeChunk]):
+-        for chunk in chunks:
+-            node_id = self._generate_node_id(chunk)
+-            node_type = chunk.chunk_type
+-            attributes = {
+-                "file_path": chunk.file_path,
+-                "start_line": chunk.start_line,
+-                "end_line": chunk.end_line,
+-                "content": chunk.content,
+-                "language": chunk.language,
+-            }
+-            if chunk.name:
+-                attributes["name"] = chunk.name
+-
+-            self.kg.add_node(node_id, node_type, attributes)
+-
+-            # Add file node if not already present
+-            file_node_id = f"file_{chunk.file_path}"
+-            if not self.kg.graph.has_node(file_node_id):
+-                self.kg.add_node(
+-                    file_node_id,
+-                    "file",
+-                    {"path": chunk.file_path, "language": chunk.language},
+-                )
+-
+-            # Add CONTAINS relationship from file to chunk
+-            self.kg.add_edge(file_node_id, node_id, "CONTAINS")
+-
+-            # Basic import relationship (file imports module/symbol)
+-            if chunk.chunk_type == "import" and chunk.name:
+-                # For now, just add an edge from the file to the import node
+-                # More sophisticated import analysis can be added later
+-                pass
+-
+-    def _generate_node_id(self, chunk: CodeChunk) -> str:
+-        """Generates a unique ID for a chunk node."""
+-        if chunk.name:
+-            return (
+-                f"{chunk.chunk_type}_{chunk.name}_{chunk.file_path}_{chunk.start_line}"
+-            )
+-        return f"{chunk.chunk_type}_{chunk.file_path}_{chunk.start_line}"
+diff --git a/graph_engine/knowledge_graph.py b/graph_engine/knowledge_graph.py
+index 893097d..313e1db 100644
+--- a/graph_engine/knowledge_graph.py
++++ b/graph_engine/knowledge_graph.py
+@@ -31,25 +31,4 @@ class KnowledgeGraph:
+             if data.get("type") == node_type
+         ]
+ 
+-    def detect_communities(self, algorithm="louvain"):
+-        if algorithm == "louvain":
+-            try:
+-                import community as co
+-
+-                partition = co.best_partition(self.graph)
+-                communities = {}
+-                for node, comm_id in partition.items():
+-                    if comm_id not in communities:
+-                        communities[comm_id] = []
+-                    communities[comm_id].append(node)
+-                return communities
+-            except ImportError:
+-                print(
+-                    "python-louvain not installed. Please install it using 'pip install python-louvain'"
+-                )
+-                return None
+-        else:
+-            raise ValueError(f"Unsupported community detection algorithm: {algorithm}")
+-
+-    def get_subgraph(self, nodes):
+-        return self.graph.subgraph(nodes)
++
+diff --git a/graph_engine/search.py b/graph_engine/search.py
+deleted file mode 100644
+index e4d3005..0000000
+--- a/graph_engine/search.py
++++ /dev/null
+@@ -1,64 +0,0 @@
+-from typing import List, Dict
+-from graph_engine.knowledge_graph import KnowledgeGraph
+-
+-
+-class Search:
+-    def __init__(self, knowledge_graph: KnowledgeGraph, llm_client=None):
+-        self.kg = knowledge_graph
+-        self.llm_client = llm_client  # Placeholder for LLM client
+-
+-    def global_search(self, query: str) -> List[Dict]:
+-        """Performs a global search across the entire knowledge graph."""
+-        # This could involve:
+-        # 1. Using LLM to understand the query and identify relevant keywords/entities.
+-        # 2. Searching node attributes (content, name, type) for keywords.
+-        # 3. Leveraging community detection to narrow down search space (map-reduce).
+-        # 4. Ranking results based on relevance.
+-
+-        results = []
+-        for node_id, attributes in self.kg.graph.nodes(data=True):
+-            # Simple keyword matching for now
+-            if (
+-                query.lower() in str(attributes.get("content", "")).lower()
+-                or query.lower() in str(attributes.get("name", "")).lower()
+-            ):
+-                results.append({"node_id": node_id, "attributes": attributes})
+-        return results
+-
+-    def local_search(
+-        self, entity_node_id: str, query: str, depth: int = 1
+-    ) -> List[Dict]:
+-        """Performs a local search around a specific entity in the graph."""
+-        # This could involve:
+-        # 1. Traversing neighbors up to a certain depth.
+-        # 2. Filtering neighbors based on relationship types.
+-        # 3. Using LLM for semantic matching of query against neighbor content.
+-
+-        results = []
+-        if not self.kg.graph.has_node(entity_node_id):
+-            return results
+-
+-        visited = set()
+-        queue = [(entity_node_id, 0)]
+-
+-        while queue:
+-            current_node, current_depth = queue.pop(0)
+-            if current_node in visited:
+-                continue
+-            visited.add(current_node)
+-
+-            if current_depth > depth:
+-                continue
+-
+-            attributes = self.kg.get_node_attributes(current_node)
+-            if (
+-                query.lower() in str(attributes.get("content", "")).lower()
+-                or query.lower() in str(attributes.get("name", "")).lower()
+-            ):
+-                results.append({"node_id": current_node, "attributes": attributes})
+-
+-            if current_depth < depth:
+-                for neighbor in self.kg.get_neighbors(current_node):
+-                    if neighbor not in visited:
+-                        queue.append((neighbor, current_depth + 1))
+-        return results
+diff --git a/graph_engine/summarizer.py b/graph_engine/summarizer.py
+index 2226ffe..1df543a 100644
+--- a/graph_engine/summarizer.py
++++ b/graph_engine/summarizer.py
+@@ -1,34 +1,129 @@
++import asyncio
+ from typing import List, Dict
+ from graph_engine.knowledge_graph import KnowledgeGraph
+ from utils.content_utils import smart_truncate, ensure_context_fits
+ 
+ 
+ class HierarchicalSummarizer:
+-    def __init__(self, knowledge_graph: KnowledgeGraph, llm_client=None):
++    def __init__(
++        self,
++        knowledge_graph: KnowledgeGraph,
++        llm_client=None,
++        max_concurrent_requests=5,
++    ):
+         self.kg = knowledge_graph
+         self.llm_client = llm_client
++        self.max_concurrent_requests = max_concurrent_requests
++        self._semaphore = asyncio.Semaphore(max_concurrent_requests)
+ 
+     async def summarize_chunk(self, chunk_node_id: str) -> str:
+-        """Generates a summary for a single code chunk."""
++        """Generates a summary for a single code chunk or file."""
+         chunk_attributes = self.kg.get_node_attributes(chunk_node_id)
+         content = chunk_attributes.get("content", "")
+         chunk_type = chunk_attributes.get("type", "")
+         name = chunk_attributes.get("name", "")
+         file_path = chunk_attributes.get("file_path", "")
+-        language = chunk_attributes.get("language", "")
+ 
+         if not self.llm_client:
+-            return f"[Chunk Summary for {name} in {file_path}]\n{content[:1000]}{'...' if len(content) > 1000 else ''}"
++            return f"[{chunk_type.title()} Summary for {name or file_path}]\n{content[:1000]}{'...' if len(content) > 1000 else ''}"
++
++        # Handle file nodes differently from code chunks
++        if chunk_type == "file":
++            return await self._summarize_file(chunk_node_id, chunk_attributes)
++        else:
++            return await self._summarize_code_chunk(chunk_node_id, chunk_attributes)
++
++    async def _summarize_file(self, file_node_id: str, file_attributes: dict) -> str:
++        """Generates a summary for a file node."""
++        file_path = file_attributes.get("file_path", "")
++        language = file_attributes.get("language", "")
++        content = file_attributes.get("content", "")
++
++        # Get summaries of contained chunks (children)
++        children = self.kg.get_neighbors(file_node_id)
++        child_summaries = []
++        for child_id in children:
++            child_attrs = self.kg.get_node_attributes(child_id)
++            if "summary" in child_attrs and child_attrs.get("type") != "file":
++                child_type = child_attrs.get("type", "")
++                child_name = child_attrs.get("name", "")
++                child_summaries.append(
++                    f"- {child_type} '{child_name}': {child_attrs['summary'][:200]}..."
++                )
++
++        # Ensure content fits within reasonable limits
++        safe_content = ensure_context_fits(content, max_tokens=15000)
++
++        prompt = f"""Analyze and provide a high-level summary of the file '{file_path}':
++
++```{language}
++{safe_content}
++```
++
++This file contains the following components:
++{chr(10).join(child_summaries) if child_summaries else "No analyzed components found."}
++
++Provide a concise file-level summary that includes:
++- Primary purpose and responsibility of this file
++- Main architectural role (entry point, service, utility, configuration, etc.)
++- Key exports and public interfaces
++- Integration with other parts of the system
++- Overall design patterns used
++
++Focus on the file's role in the broader codebase architecture."""
++
++        try:
++            messages = [
++                {
++                    "role": "system",
++                    "content": "You are a senior software architect analyzing file structure and purpose. Provide clear, architectural summaries.",
++                },
++                {"role": "user", "content": prompt},
++            ]
++
++            async with self._semaphore:
++                summary = await self.llm_client.complete(messages)
++
++            # Store the summary in the graph
++            self.kg.graph.nodes[file_node_id]["summary"] = summary
++
++            return f"[File Summary for {file_path}]\n{summary}"
++
++        except Exception as e:
++            error_summary = f"Error generating file summary: {str(e)}\n{content[:1000]}{'...' if len(content) > 1000 else ''}"
++            self.kg.graph.nodes[file_node_id]["summary"] = error_summary
++            return f"[File Summary for {file_path}]\n{error_summary}"
++
++    async def _summarize_code_chunk(
++        self, chunk_node_id: str, chunk_attributes: dict
++    ) -> str:
++        """Generates a summary for a code chunk (function, class, etc.)."""
++        content = chunk_attributes.get("content", "")
++        chunk_type = chunk_attributes.get("type", "")
++        name = chunk_attributes.get("name", "")
++        file_path = chunk_attributes.get("file_path", "")
++        language = chunk_attributes.get("language", "")
+ 
+         # Ensure content fits within reasonable limits for single chunk analysis
+         safe_content = ensure_context_fits(content, max_tokens=20000)
+-        
++
++        # Get summaries of dependencies
++        dependencies = self.kg.get_neighbors(chunk_node_id)
++        dependency_summaries = []
++        for dep_id in dependencies:
++            dep_attributes = self.kg.get_node_attributes(dep_id)
++            if "summary" in dep_attributes:
++                dependency_summaries.append(dep_attributes["summary"])
++
+         prompt = f"""Analyze and summarize the following {chunk_type} '{name}' from file '{file_path}':
+ 
+ ```{language}
+ {safe_content}
+ ```
+ 
++This chunk has the following dependencies:
++{dependency_summaries}
++
+ Provide a concise summary that includes:
+ - Purpose and functionality
+ - Key dependencies and relationships
+@@ -46,11 +141,21 @@ Keep the summary focused and technical."""
+                 {"role": "user", "content": prompt},
+             ]
+ 
+-            summary = await self.llm_client.complete(messages)
++            async with self._semaphore:
++                summary = await self.llm_client.complete(messages)
++
++            # Store the summary in the graph
++            self.kg.graph.nodes[chunk_node_id]["summary"] = summary
++
+             return f"[Chunk Summary for {name} in {file_path}]\n{summary}"
+ 
+         except Exception as e:
+-            return f"[Chunk Summary for {name} in {file_path}]\nError generating summary: {str(e)}\n{content[:2000]}{'...' if len(content) > 2000 else ''}"
++            error_summary = f"Error generating summary: {str(e)}\n{content[:2000]}{'...' if len(content) > 2000 else ''}"
++
++            # Store the error summary in the graph
++            self.kg.graph.nodes[chunk_node_id]["summary"] = error_summary
++
++            return f"[Chunk Summary for {name} in {file_path}]\n{error_summary}"
+ 
+     async def summarize_community(self, community_nodes: List[str]) -> str:
+         """Generates a summary for a community of code chunks."""
+@@ -71,8 +176,10 @@ Keep the summary focused and technical."""
+             language = attributes.get("language", "")
+ 
+             # Use smart truncation for better structure preservation
+-            safe_content = smart_truncate(content, max_length=5000, preserve_structure=True)
+-            
++            safe_content = smart_truncate(
++                content, max_length=5000, preserve_structure=True
++            )
++
+             node_summary = f"""
+ ### {chunk_type.title()}: {name or "unnamed"} 
+ **File:** {file_path}
+@@ -84,7 +191,7 @@ Keep the summary focused and technical."""
+             node_summaries.append(node_summary)
+ 
+         combined_content = "\n".join(node_summaries)
+-        
++
+         # Ensure the combined content fits within context limits
+         safe_combined_content = ensure_context_fits(combined_content, max_tokens=50000)
+ 
+@@ -111,7 +218,8 @@ Focus on the collective behavior and interactions rather than individual compone
+                 {"role": "user", "content": prompt},
+             ]
+ 
+-            summary = await self.llm_client.complete(messages)
++            async with self._semaphore:
++                summary = await self.llm_client.complete(messages)
+             return f"[Community Summary - {len(community_nodes)} chunks]\n{summary}"
+ 
+         except Exception as e:
+@@ -125,22 +233,39 @@ Focus on the collective behavior and interactions rather than individual compone
+         if not self.llm_client:
+             return f"[Global Summary]\nCodebase contains {len(communities)} communities (LLM client not available)."
+ 
+-        # Generate summaries for each community
+-        community_summaries = []
+-        for comm_id, nodes in communities.items():
++        # Generate summaries for each community in parallel
++        async def summarize_community_with_id(comm_id: int, nodes: List[str]) -> str:
+             try:
+                 summary = await self.summarize_community(nodes)
+-                community_summaries.append(f"## Community {comm_id}\n{summary}")
++                return f"## Community {comm_id}\n{summary}"
+             except Exception as e:
+-                community_summaries.append(
+-                    f"## Community {comm_id}\nError generating summary: {str(e)}"
++                return f"## Community {comm_id}\nError generating summary: {str(e)}"
++
++        community_tasks = [
++            summarize_community_with_id(comm_id, nodes)
++            for comm_id, nodes in communities.items()
++        ]
++
++        community_summaries = await asyncio.gather(
++            *community_tasks, return_exceptions=True
++        )
++
++        # Handle any exceptions that occurred
++        processed_summaries = []
++        for i, result in enumerate(community_summaries):
++            if isinstance(result, Exception):
++                comm_id = list(communities.keys())[i]
++                processed_summaries.append(
++                    f"## Community {comm_id}\nError generating summary: {str(result)}"
+                 )
++            else:
++                processed_summaries.append(result)
+ 
+-        if not community_summaries:
++        if not processed_summaries:
+             return "[Global Summary]\nNo valid community summaries generated."
+ 
+-        combined_summaries = "\n\n".join(community_summaries)
+-        
++        combined_summaries = "\n\n".join(processed_summaries)
++
+         # Ensure global summary content fits within context limits
+         safe_summaries = ensure_context_fits(combined_summaries, max_tokens=80000)
+ 
+@@ -170,8 +295,52 @@ Focus on providing strategic insights about the codebase as a whole."""
+                 {"role": "user", "content": prompt},
+             ]
+ 
+-            summary = await self.llm_client.complete(messages)
++            async with self._semaphore:
++                summary = await self.llm_client.complete(messages)
+             return f"[Global Summary - {len(communities)} communities]\n{summary}"
+ 
+         except Exception as e:
+             return f"[Global Summary - {len(communities)} communities]\nError generating global summary: {str(e)}\n\nCommunity summaries:\n{combined_summaries[:10000]}{'...' if len(combined_summaries) > 10000 else ''}"
++
++    async def summarize_chunks_batch(
++        self, chunk_node_ids: List[str], batch_size: int = 10
++    ) -> Dict[str, str]:
++        """Generates summaries for multiple chunks in controlled batches."""
++        if not chunk_node_ids:
++            return {}
++
++        if not self.llm_client:
++            return {
++                node_id: f"[Chunk Summary]\nLLM client not available for {node_id}"
++                for node_id in chunk_node_ids
++            }
++
++        async def summarize_single_chunk(node_id: str) -> tuple[str, str]:
++            try:
++                summary = await self.summarize_chunk(node_id)
++                return node_id, summary
++            except Exception as e:
++                error_summary = f"Error generating summary: {str(e)}"
++                return node_id, error_summary
++
++        # Process chunks in batches to avoid overwhelming the API
++        all_summaries = {}
++        for i in range(0, len(chunk_node_ids), batch_size):
++            batch = chunk_node_ids[i : i + batch_size]
++            tasks = [summarize_single_chunk(node_id) for node_id in batch]
++            results = await asyncio.gather(*tasks, return_exceptions=True)
++
++            # Process batch results
++            for j, result in enumerate(results):
++                if isinstance(result, Exception):
++                    node_id = batch[j]
++                    all_summaries[node_id] = f"Error generating summary: {str(result)}"
++                else:
++                    node_id, summary = result
++                    all_summaries[node_id] = summary
++
++            # Add a small delay between batches to be respectful to the API
++            if i + batch_size < len(chunk_node_ids):
++                await asyncio.sleep(1)
++
++        return all_summaries
+diff --git a/inference/openai_client.py b/inference/openai_client.py
+index 9ab1359..337e7c8 100644
+--- a/inference/openai_client.py
++++ b/inference/openai_client.py
+@@ -1,7 +1,9 @@
+ import time
++import asyncio
+ from typing import List, Dict, Any, Optional
+ from dataclasses import dataclass
+ from openai import AsyncOpenAI
++from openai import RateLimitError, APIError
+ from monitoring.telemetry import get_telemetry
+ from utils.logging import get_logger
+ from cli.config import ModelConfig
+@@ -9,6 +11,72 @@ from cli.config import ModelConfig
+ logger = get_logger(__name__)
+ 
+ 
++class RateLimiter:
++    """Global rate limiter to prevent overwhelming the API."""
++    
++    def __init__(self, requests_per_minute: int = 20, requests_per_second: float = 0.5):
++        self.requests_per_minute = requests_per_minute
++        self.requests_per_second = requests_per_second
++        self.request_times = []
++        self.last_request_time = 0
++        self.consecutive_rate_limits = 0
++        self.adaptive_delay = 1.0  # Start with 1 second base delay
++        self._lock = asyncio.Lock()
++    
++    async def acquire(self):
++        """Acquire permission to make a request."""
++        async with self._lock:
++            now = time.time()
++            
++            # Remove requests older than 1 minute
++            self.request_times = [t for t in self.request_times if now - t < 60]
++            
++            # Check if we need to wait for per-minute limit
++            if len(self.request_times) >= self.requests_per_minute:
++                wait_time = 60 - (now - self.request_times[0]) + 1
++                logger.info(f"Rate limit: waiting {wait_time:.1f}s for per-minute limit")
++                await asyncio.sleep(wait_time)
++                now = time.time()
++                self.request_times = [t for t in self.request_times if now - t < 60]
++            
++            # Check if we need to wait for per-second limit
++            time_since_last = now - self.last_request_time
++            min_interval = 1.0 / self.requests_per_second
++            
++            # Apply adaptive delay if we've been rate limited recently
++            if self.consecutive_rate_limits > 0:
++                min_interval = max(min_interval, self.adaptive_delay)
++            
++            if time_since_last < min_interval:
++                wait_time = min_interval - time_since_last
++                logger.debug(f"Rate limit: waiting {wait_time:.1f}s for per-second limit")
++                await asyncio.sleep(wait_time)
++                now = time.time()
++            
++            # Record this request
++            self.request_times.append(now)
++            self.last_request_time = now
++    
++    def record_rate_limit(self):
++        """Record that we hit a rate limit to adjust future delays."""
++        self.consecutive_rate_limits += 1
++        # Exponentially increase adaptive delay, but cap it
++        self.adaptive_delay = min(self.adaptive_delay * 1.5, 30.0)
++        logger.warning(f"Rate limit hit #{self.consecutive_rate_limits}, adaptive delay now {self.adaptive_delay:.1f}s")
++    
++    def record_success(self):
++        """Record a successful request to gradually reduce delays."""
++        if self.consecutive_rate_limits > 0:
++            self.consecutive_rate_limits = max(0, self.consecutive_rate_limits - 1)
++            if self.consecutive_rate_limits == 0:
++                self.adaptive_delay = max(1.0, self.adaptive_delay * 0.8)
++                logger.info(f"Rate limiting recovered, adaptive delay now {self.adaptive_delay:.1f}s")
++
++
++# Global rate limiter instance
++_rate_limiter = RateLimiter()
++
++
+ @dataclass
+ class EmbeddingResponse:
+     embedding: List[float]
+@@ -35,6 +103,47 @@ class LLMClient:
+     def __init__(self, config=None):
+         self.config = config
+         self._clients: Dict[str, AsyncOpenAI] = {}
++        # Limit concurrent requests to prevent overwhelming the API
++        self._semaphore = asyncio.Semaphore(2)  # Max 2 concurrent requests
++
++    async def _retry_with_backoff(self, func, *args, max_retries=2, **kwargs):
++        """Retry function with intelligent backoff for rate limit errors."""
++        for attempt in range(max_retries + 1):
++            try:
++                # Use global rate limiter before making request
++                await _rate_limiter.acquire()
++                result = await func(*args, **kwargs)
++                _rate_limiter.record_success()
++                return result
++                
++            except RateLimitError as e:
++                _rate_limiter.record_rate_limit()
++                
++                if attempt == max_retries:
++                    logger.error(f"Rate limit exceeded after {max_retries} retries")
++                    raise e
++
++                # More conservative backoff: start at 10s, then 30s
++                wait_time = 10 + (attempt * 20)
++                logger.warning(
++                    f"Rate limit hit, retrying in {wait_time}s (attempt {attempt + 1}/{max_retries + 1})"
++                )
++                await asyncio.sleep(wait_time)
++                
++            except APIError as e:
++                if "429" in str(e):
++                    _rate_limiter.record_rate_limit()
++                    
++                    if attempt < max_retries:
++                        wait_time = 15 + (attempt * 25)  # 15s, then 40s
++                        logger.warning(
++                            f"API error 429, retrying in {wait_time}s (attempt {attempt + 1}/{max_retries + 1})"
++                        )
++                        await asyncio.sleep(wait_time)
++                    else:
++                        raise e
++                else:
++                    raise e
+ 
+     def _record_telemetry(self, operation: str, model: str, duration: float, **kwargs):
+         """Helper to record telemetry data."""
+@@ -89,8 +198,8 @@ class LLMClient:
+             {"model": model_name_for_telemetry, "text_length": len(text)},
+         ):
+             start_time = time.time()
+-            response = await client.embeddings.create(
+-                model=model_name_for_telemetry, input=text
++            response = await self._retry_with_backoff(
++                client.embeddings.create, model=model_name_for_telemetry, input=text
+             )
+             duration = time.time() - start_time
+ 
+@@ -130,8 +239,8 @@ class LLMClient:
+             {"model": model_name_for_telemetry, "batch_size": len(texts)},
+         ):
+             start_time = time.time()
+-            response = await client.embeddings.create(
+-                model=model_name_for_telemetry, input=texts
++            response = await self._retry_with_backoff(
++                client.embeddings.create, model=model_name_for_telemetry, input=texts
+             )
+             duration = time.time() - start_time
+ 
+@@ -178,7 +287,8 @@ class LLMClient:
+             operation_name,
+             {"model": model_name_for_telemetry, "message_count": len(messages)},
+         ):
+-            response = await client.chat.completions.create(
++            response = await self._retry_with_backoff(
++                client.chat.completions.create,
+                 model=model_name_for_telemetry,
+                 messages=messages,
+                 temperature=getattr(self.config, "review_temperature", 0.1),
+diff --git a/inference/prompt_builder.py b/inference/prompt_builder.py
+index d5d8b53..8c63fc1 100644
+--- a/inference/prompt_builder.py
++++ b/inference/prompt_builder.py
+@@ -2,11 +2,8 @@ from typing import List
+ from dataclasses import dataclass
+ from processing.diff_processor import ChangedChunk
+ from processing.reranker import RerankedResult
+-from utils.logging import get_logger
+ from utils.content_utils import smart_truncate
+ 
+-logger = get_logger(__name__)
+-
+ 
+ @dataclass
+ class ReviewPrompt:
+@@ -121,9 +118,7 @@ Use clear, well-structured sections and bullet points for readability.
+             "For each point, provide specific examples and actionable suggestions.",
+         ]
+ 
+-        logger.debug(
+-            f"Built review prompt with diff length {len(diff_content)} and context length {len(context_section)}"
+-        )
++
+         return "\n".join(prompt_parts)
+ 
+     def build_quick_review_prompt(self, diff_content: str) -> str:
+@@ -163,42 +158,52 @@ Use clear, well-structured sections and bullet points for readability.
+         if context_chunks:
+             context_parts.append("\n### Similar/Related Code")
+             for i, result in enumerate(context_chunks[:5], 1):
+-                context_parts.append(f"\n#### Context {i}: {result.metadata.file_path}")
+-                context_parts.append(f"**Type:** {result.metadata.chunk_type}")
++                # Handle both old and new result formats
++                if hasattr(result, "result"):
++                    # New RerankedResult format
++                    metadata = result.result.metadata
++                    content = result.result.content
++                    score = result.score
++                else:
++                    # Old format (fallback)
++                    metadata = result.metadata
++                    content = result.content
++                    score = result.score
++
++                context_parts.append(
++                    f"\n#### Context {i}: {metadata.get('file_path', 'unknown')}"
++                )
++                context_parts.append(
++                    f"**Type:** {metadata.get('chunk_type', 'unknown')}"
++                )
+ 
+-                if result.metadata.name:
+-                    context_parts.append(f"**Name:** {result.metadata.name}")
++                if metadata.get("name"):
++                    context_parts.append(f"**Name:** {metadata.get('name')}")
+ 
+                 # Add enriched metadata if available
+-                if (
+-                    hasattr(result.metadata, "parent_name")
+-                    and result.metadata.parent_name
+-                ):
+-                    parent_type = getattr(result.metadata, "parent_type", "unknown")
++                if metadata.get("parent_name"):
++                    parent_type = metadata.get("parent_type", "unknown")
+                     context_parts.append(
+-                        f"**Parent:** {parent_type} `{result.metadata.parent_name}`"
++                        f"**Parent:** {parent_type} `{metadata.get('parent_name')}`"
+                     )
+ 
+-                if (
+-                    hasattr(result.metadata, "full_signature")
+-                    and result.metadata.full_signature
+-                ):
++                if metadata.get("full_signature"):
+                     context_parts.append(
+-                        f"**Signature:** `{result.metadata.full_signature}`"
++                        f"**Signature:** `{metadata.get('full_signature')}`"
+                     )
+ 
+-                if hasattr(result.metadata, "docstring") and result.metadata.docstring:
++                if metadata.get("docstring"):
+                     safe_docstring = smart_truncate(
+-                        result.metadata.docstring,
++                        metadata.get("docstring"),
+                         max_length=1000,
+                         preserve_structure=False,
+                     )
+                     context_parts.append(f"**Documentation:** {safe_docstring}")
+ 
+-                context_parts.append(f"**Relevance Score:** {result.score:.2f}")
+-                context_parts.append("```" + result.metadata.language)
++                context_parts.append(f"**Relevance Score:** {score:.2f}")
++                context_parts.append("```" + metadata.get("language", "text"))
+                 safe_content = smart_truncate(
+-                    result.content, max_length=8000, preserve_structure=True
++                    content, max_length=8000, preserve_structure=True
+                 )
+                 context_parts.append(safe_content)
+                 context_parts.append("```")
+diff --git a/integrations/__init__.py b/integrations/__init__.py
+deleted file mode 100644
+index d14fadd..0000000
+--- a/integrations/__init__.py
++++ /dev/null
+@@ -1 +0,0 @@
+-# Integrations package
+\ No newline at end of file
+diff --git a/integrations/github.py b/integrations/github.py
+deleted file mode 100644
+index 8d6d5a4..0000000
+--- a/integrations/github.py
++++ /dev/null
+@@ -1,276 +0,0 @@
+-from typing import List, Dict, Any, Optional
+-from dataclasses import dataclass
+-import requests
+-from utils.logging import get_logger
+-
+-from cli.config import Config
+-from services.review_service import ReviewService
+-from monitoring.telemetry import setup_telemetry
+-
+-logger = get_logger(__name__)
+-
+-
+-@dataclass
+-class GitHubConfig:
+-    """GitHub integration configuration."""
+-
+-    token: str
+-    repo_owner: str
+-    repo_name: str
+-    base_url: str = "https://api.github.com"
+-
+-
+-@dataclass
+-class PullRequest:
+-    """Pull request information."""
+-
+-    number: int
+-    title: str
+-    description: str
+-    author: str
+-    base_branch: str
+-    head_branch: str
+-    diff_url: str
+-    files_changed: List[str]
+-
+-
+-class GitHubIntegration:
+-    """GitHub integration for automated code reviews."""
+-
+-    def __init__(self, config: GitHubConfig):
+-        self.config = config
+-        self.session = requests.Session()
+-        self.session.headers.update(
+-            {
+-                "Authorization": f"token {config.token}",
+-                "Accept": "application/vnd.github.v3+json",
+-            }
+-        )
+-
+-        # Review service will be initialized with config when needed
+-
+-        # Initialize telemetry for GitHub integration
+-        setup_telemetry()
+-
+-    def get_pull_request(self, pr_number: int) -> Optional[PullRequest]:
+-        """Get pull request information."""
+-        url = f"{self.config.base_url}/repos/{self.config.repo_owner}/{self.config.repo_name}/pulls/{pr_number}"
+-
+-        response = self.session.get(url)
+-        if response.status_code != 200:
+-            logger.error(
+-                f"Failed to get PR {pr_number} info. Status: {response.status_code}"
+-            )
+-            return None
+-
+-        data = response.json()
+-
+-        return PullRequest(
+-            number=pr_number,
+-            title=data["title"],
+-            description=data["body"] or "",
+-            author=data["user"]["login"],
+-            base_branch=data["base"]["ref"],
+-            head_branch=data["head"]["ref"],
+-            diff_url=data["diff_url"],
+-            files_changed=self._get_changed_files(pr_number),
+-        )
+-
+-    def get_pull_request_diff(self, pr_number: int) -> Optional[str]:
+-        """Get pull request diff."""
+-        url = f"{self.config.base_url}/repos/{self.config.repo_owner}/{self.config.repo_name}/pulls/{pr_number}.diff"
+-
+-        response = self.session.get(url)
+-        if response.status_code == 200:
+-            return response.text
+-        return None
+-
+-    async def review_pull_request(
+-        self,
+-        pr_number: int,
+-        config: Config,
+-        index_path: str = "index",
+-        focus_areas: List[str] = None,
+-    ) -> Dict[str, Any]:
+-        """Review a pull request and return structured feedback."""
+-
+-        # Get PR information
+-        pr = self.get_pull_request(pr_number)
+-        if not pr:
+-            logger.error(f"Pull request {pr_number} not found.")
+-            return {"error": "Pull request not found"}
+-
+-        # Get diff
+-        diff_content = self.get_pull_request_diff(pr_number)
+-        if not diff_content:
+-            logger.error(f"Could not retrieve diff for PR {pr_number}.")
+-            return {"error": "Could not retrieve diff"}
+-
+-        # Use ReviewService for consistent review logic
+-        review_service = ReviewService(config, logger)
+-
+-        # Create a temporary diff file for the service
+-        import tempfile
+-        import os
+-
+-        with tempfile.NamedTemporaryFile(mode="w", suffix=".diff", delete=False) as f:
+-            f.write(diff_content)
+-            temp_diff_path = f.name
+-
+-        try:
+-            # Use ReviewService to perform the review
+-            review_result = await review_service.review_diff(
+-                diff_file=temp_diff_path,
+-                index=index_path,
+-                repo_path=None,  # GitHub integration doesn't have local repo path
+-            )
+-
+-            if not review_result:
+-                return {"error": "Review service failed to generate review"}
+-
+-            review_text = review_result.review_content
+-
+-        finally:
+-            # Clean up temp file
+-            os.unlink(temp_diff_path)
+-
+-        # Process review (just use raw text)
+-        raw_review_text = review_text
+-
+-        return {
+-            "pull_request": {
+-                "number": pr.number,
+-                "title": pr.title,
+-                "author": pr.author,
+-                "files_changed": len(pr.files_changed),
+-            },
+-            "review": {
+-                "raw_text": raw_review_text,
+-            },
+-        }
+-
+-    def post_review_comment(self, pr_number: int, comment: str) -> bool:
+-        """Post a review comment on a pull request."""
+-        url = f"{self.config.base_url}/repos/{self.config.repo_owner}/{self.config.repo_name}/pulls/{pr_number}/reviews"
+-
+-        data = {"body": comment, "event": "COMMENT"}
+-
+-        response = self.session.post(url, json=data)
+-        return response.status_code == 200
+-
+-    def post_inline_comments(
+-        self, pr_number: int, comments: List[Dict[str, Any]]
+-    ) -> bool:
+-        """Post inline comments on specific lines."""
+-        url = f"{self.config.base_url}/repos/{self.config.repo_owner}/{self.config.repo_name}/pulls/{pr_number}/reviews"
+-
+-        formatted_comments = []
+-        for comment in comments:
+-            formatted_comments.append(
+-                {
+-                    "path": comment["file_path"],
+-                    "line": comment["line_number"],
+-                    "body": comment["body"],
+-                }
+-            )
+-
+-        data = {
+-            "body": "Automated code review completed",
+-            "event": "COMMENT",
+-            "comments": formatted_comments,
+-        }
+-
+-        response = self.session.post(url, json=data)
+-        return response.status_code == 200
+-
+-    def _get_changed_files(self, pr_number: int) -> List[str]:
+-        """Get list of files changed in pull request."""
+-        url = f"{self.config.base_url}/repos/{self.config.repo_owner}/{self.config.repo_name}/pulls/{pr_number}/files"
+-
+-        response = self.session.get(url)
+-        if response.status_code != 200:
+-            return []
+-
+-        files = response.json()
+-        return [file["filename"] for file in files]
+-
+-    def setup_webhook(self, webhook_url: str, events: List[str] = None) -> bool:
+-        """Set up webhook for pull request events."""
+-        if events is None:
+-            events = ["pull_request"]
+-
+-        url = f"{self.config.base_url}/repos/{self.config.repo_owner}/{self.config.repo_name}/hooks"
+-
+-        data = {
+-            "name": "web",
+-            "active": True,
+-            "events": events,
+-            "config": {"url": webhook_url, "content_type": "json", "insecure_ssl": "0"},
+-        }
+-
+-        response = self.session.post(url, json=data)
+-        return response.status_code == 201
+-
+-
+-class GitHubWebhookHandler:
+-    """Handle GitHub webhook events."""
+-
+-    def __init__(self, github_integration: GitHubIntegration):
+-        self.github = github_integration
+-
+-    async def handle_pull_request_event(
+-        self, event_data: Dict[str, Any]
+-    ) -> Dict[str, Any]:
+-        """Handle pull request webhook event."""
+-        action = event_data.get("action")
+-
+-        if action not in ["opened", "synchronize"]:
+-            return {"message": "Event ignored"}
+-
+-        pr_number = event_data["pull_request"]["number"]
+-
+-        # Review the pull request
+-        config = Config.load()
+-        review_result = await self.github.review_pull_request(
+-            pr_number, config, focus_areas=["security", "performance", "bugs"]
+-        )
+-
+-        if "error" in review_result:
+-            return review_result
+-
+-        # Post review comment
+-        review_summary = self._format_review_summary(review_result)
+-        success = self.github.post_review_comment(pr_number, review_summary)
+-
+-        return {
+-            "message": "Review posted successfully"
+-            if success
+-            else "Failed to post review",
+-            "review_summary": review_summary,
+-        }
+-
+-    def _format_review_summary(self, review_result: Dict[str, Any]) -> str:
+-        """Format review result for GitHub comment."""
+-        pr_info = review_result["pull_request"]
+-        review_info = review_result["review"]
+-
+-        summary_parts = [
+-            "# 🤖 Automated Code Review",
+-            "",
+-            f"**Pull Request:** #{pr_info['number']} - {pr_info['title']}",
+-            f"**Files Changed:** {pr_info['files_changed']}",
+-            "",
+-            "## Raw Review Output",
+-            review_info["raw_text"],
+-        ]
+-
+-        summary_parts.extend(
+-            [
+-                "",
+-                "---",
+-                "*This review was generated automatically by Turbo Review*",
+-                "*Please validate all suggestions before implementing*",
+-            ]
+-        )
+-
+-        return "\n".join(summary_parts)
+diff --git a/main.py b/main.py
+index f3627a2..4f07be3 100644
+--- a/main.py
++++ b/main.py
+@@ -7,6 +7,7 @@ Usage:
+ Commands:
+     index <repo_path>     - Index a repository
+     review <diff_file>    - Review a diff file using existing index
++    health                - Check database health
+ """
+ 
+ import sys
+@@ -14,6 +15,7 @@ import asyncio
+ 
+ from cli.config import Config
+ from services.review_service import ReviewService
++from storage.database import TurboReviewDatabase
+ from utils.logging import setup_logging, get_logger
+ 
+ 
+@@ -21,24 +23,54 @@ async def index_repository(repo_path: str):
+     """Index a repository for code review."""
+     config = Config.load()
+     logger = get_logger()
+-    service = ReviewService(config, logger)
++
++    # Initialize database
++    db = TurboReviewDatabase()
++
++    # Check database health
++    health = db.health_check()
++    if not all(health.values()):
++        logger.error(f"Database health check failed: {health}")
++        logger.error("Make sure to start databases with: docker-compose up -d")
++        sys.exit(1)
++
++    logger.info("Database health check passed")
++
++    # Initialize service with database
++    service = ReviewService(config, logger, db)
+ 
+     success = await service.index_repository(repo_path)
+     if not success:
+         logger.error("Failed to index repository")
+         sys.exit(1)
+ 
++    # Show stats
++    stats = db.get_database_stats()
++    logger.info(f"Indexing complete. Database stats: {stats}")
++
+ 
+ async def review_diff(diff_file: str):
+     """Review a diff file."""
+     config = Config.load()
+     logger = get_logger()
+-    service = ReviewService(config, logger)
++
++    # Initialize database
++    db = TurboReviewDatabase()
++
++    # Check database health
++    health = db.health_check()
++    if not all(health.values()):
++        logger.error(f"Database health check failed: {health}")
++        logger.error("Make sure to start databases with: docker-compose up -d")
++        sys.exit(1)
++
++    # Initialize service with database
++    service = ReviewService(config, logger, db)
+ 
+     result = await service.review_diff(diff_file)
+     if result:
+         logger.info(
+-f"""
++            f"""
+ ================================
+ CODE REVIEW
+ ================================
+@@ -51,6 +83,31 @@ CODE REVIEW
+         sys.exit(1)
+ 
+ 
++async def health_check():
++    """Check database health."""
++    logger = get_logger()
++
++    try:
++        db = TurboReviewDatabase()
++        health = db.health_check()
++        stats = db.get_database_stats()
++
++        logger.info("=== Database Health Check ===")
++        logger.info(f"Vector DB (Qdrant): {'✅' if health['vector_db'] else '❌'}")
++        logger.info(f"Graph DB (Neo4j): {'✅' if health['graph_db'] else '❌'}")
++        logger.info(f"Database Stats: {stats}")
++
++        if all(health.values()):
++            logger.info("All databases are healthy! 🎉")
++        else:
++            logger.error("Some databases are unhealthy. Run: docker-compose up -d")
++            sys.exit(1)
++
++    except Exception as e:
++        logger.error(f"Health check failed: {e}")
++        sys.exit(1)
++
++
+ def main():
+     """Main entry point."""
+     config = Config.load()
+@@ -67,6 +124,8 @@ def main():
+         asyncio.run(index_repository(sys.argv[2]))
+     elif command == "review" and len(sys.argv) > 2:
+         asyncio.run(review_diff(sys.argv[2]))
++    elif command == "health":
++        asyncio.run(health_check())
+     else:
+         logger.info(__doc__)
+         sys.exit(1)
+diff --git a/processing/ast_resolver.py b/processing/ast_resolver.py
+deleted file mode 100644
+index f4d12c3..0000000
+--- a/processing/ast_resolver.py
++++ /dev/null
+@@ -1,342 +0,0 @@
+-import re
+-from typing import List, Set, Dict, Optional
+-from dataclasses import dataclass
+-from pathlib import Path
+-
+-from core.chunker import TreeSitterChunker, CodeChunk
+-from utils.logging import get_logger
+-
+-logger = get_logger(__name__)
+-
+-
+-@dataclass
+-class Symbol:
+-    """Represents a code symbol (function, class, variable)."""
+-
+-    name: str
+-    symbol_type: str  # 'function', 'class', 'variable', 'import'
+-    file_path: str
+-    line_number: int
+-    definition: Optional[str] = None
+-
+-
+-@dataclass
+-class Dependency:
+-    """Represents a dependency relationship between code chunks."""
+-
+-    source_chunk: str  # chunk_id
+-    target_chunk: str  # chunk_id
+-    dependency_type: str  # 'calls', 'imports', 'inherits', 'uses'
+-    symbol_name: str
+-
+-
+-class ASTResolver:
+-    """Resolve AST-based symbol dependencies and relationships."""
+-
+-    def __init__(self):
+-        self.chunker = TreeSitterChunker()
+-        self.symbol_table: Dict[str, List[Symbol]] = {}
+-        self.dependencies: List[Dependency] = []
+-
+-    def analyze_repository(self, repo_path: str) -> Dict[str, any]:
+-        """Analyze repository and build symbol table and dependencies."""
+-        logger.info(f"Analyzing repository: {repo_path}")
+-        repo_path = Path(repo_path)
+-
+-        # Extract all chunks with symbols
+-        chunks = self.chunker.chunk_repository(str(repo_path))
+-
+-        # Build symbol table
+-        self._build_symbol_table(chunks)
+-
+-        # Find dependencies
+-        self._find_dependencies(chunks)
+-
+-        return {
+-            "symbols": len(self.symbol_table),
+-            "dependencies": len(self.dependencies),
+-            "files_analyzed": len(set(chunk.file_path for chunk in chunks)),
+-        }
+-
+-    def find_related_chunks(self, chunk_ids: List[str], max_depth: int = 2) -> Set[str]:
+-        """Find chunks related to given chunks through dependencies."""
+-        related = set(chunk_ids)
+-        current_level = set(chunk_ids)
+-
+-        for depth in range(max_depth):
+-            next_level = set()
+-
+-            for dependency in self.dependencies:
+-                if dependency.source_chunk in current_level:
+-                    next_level.add(dependency.target_chunk)
+-                elif dependency.target_chunk in current_level:
+-                    next_level.add(dependency.source_chunk)
+-
+-            new_chunks = next_level - related
+-            if not new_chunks:
+-                break
+-
+-            related.update(new_chunks)
+-            current_level = new_chunks
+-
+-        return related
+-
+-    def get_symbols_in_chunk(self, chunk: CodeChunk) -> List[Symbol]:
+-        """Extract symbols defined in a code chunk."""
+-        symbols = []
+-
+-        if chunk.language == "python":
+-            symbols.extend(self._extract_python_symbols(chunk))
+-        elif chunk.language in ["javascript", "typescript"]:
+-            symbols.extend(self._extract_js_symbols(chunk))
+-
+-        return symbols
+-
+-    def get_imported_symbols(self, chunk: CodeChunk) -> List[str]:
+-        """Get symbols imported by a code chunk."""
+-        imported = []
+-
+-        if chunk.chunk_type == "import":
+-            if chunk.language == "python":
+-                imported.extend(self._extract_python_imports(chunk.content))
+-            elif chunk.language in ["javascript", "typescript"]:
+-                imported.extend(self._extract_js_imports(chunk.content))
+-
+-        return imported
+-
+-    def get_called_functions(self, chunk: CodeChunk) -> List[str]:
+-        """Get function calls within a code chunk."""
+-        calls = []
+-
+-        if chunk.language == "python":
+-            calls.extend(self._extract_python_calls(chunk.content))
+-        elif chunk.language in ["javascript", "typescript"]:
+-            calls.extend(self._extract_js_calls(chunk.content))
+-
+-        return calls
+-
+-    def _build_symbol_table(self, chunks: List[CodeChunk]):
+-        """Build symbol table from chunks."""
+-        self.symbol_table = {}
+-
+-        for chunk in chunks:
+-            symbols = self.get_symbols_in_chunk(chunk)
+-
+-            for symbol in symbols:
+-                if symbol.name not in self.symbol_table:
+-                    self.symbol_table[symbol.name] = []
+-                self.symbol_table[symbol.name].append(symbol)
+-
+-    def _find_dependencies(self, chunks: List[CodeChunk]):
+-        """Find dependencies between chunks."""
+-        self.dependencies = []
+-
+-        for chunk in chunks:
+-            chunk_id = f"{chunk.file_path}:{chunk.start_line}:{chunk.end_line}"
+-
+-            # Find import dependencies
+-            imported_symbols = self.get_imported_symbols(chunk)
+-            for symbol_name in imported_symbols:
+-                if symbol_name in self.symbol_table:
+-                    for target_symbol in self.symbol_table[symbol_name]:
+-                        target_chunk_id = (
+-                            f"{target_symbol.file_path}:{target_symbol.line_number}"
+-                        )
+-
+-                        dependency = Dependency(
+-                            source_chunk=chunk_id,
+-                            target_chunk=target_chunk_id,
+-                            dependency_type="imports",
+-                            symbol_name=symbol_name,
+-                        )
+-                        self.dependencies.append(dependency)
+-
+-            # Find function call dependencies
+-            called_functions = self.get_called_functions(chunk)
+-            for function_name in called_functions:
+-                if function_name in self.symbol_table:
+-                    for target_symbol in self.symbol_table[function_name]:
+-                        if target_symbol.symbol_type == "function":
+-                            target_chunk_id = (
+-                                f"{target_symbol.file_path}:{target_symbol.line_number}"
+-                            )
+-
+-                            dependency = Dependency(
+-                                source_chunk=chunk_id,
+-                                target_chunk=target_chunk_id,
+-                                dependency_type="calls",
+-                                symbol_name=function_name,
+-                            )
+-                            self.dependencies.append(dependency)
+-
+-    def _extract_python_symbols(self, chunk: CodeChunk) -> List[Symbol]:
+-        """Extract symbols from Python code chunk."""
+-        symbols = []
+-
+-        if chunk.chunk_type == "function" and chunk.name:
+-            symbols.append(
+-                Symbol(
+-                    name=chunk.name,
+-                    symbol_type="function",
+-                    file_path=chunk.file_path,
+-                    line_number=chunk.start_line,
+-                    definition=chunk.content,
+-                )
+-            )
+-
+-        elif chunk.chunk_type == "class" and chunk.name:
+-            symbols.append(
+-                Symbol(
+-                    name=chunk.name,
+-                    symbol_type="class",
+-                    file_path=chunk.file_path,
+-                    line_number=chunk.start_line,
+-                    definition=chunk.content,
+-                )
+-            )
+-
+-        return symbols
+-
+-    def _extract_js_symbols(self, chunk: CodeChunk) -> List[Symbol]:
+-        """Extract symbols from JavaScript/TypeScript code chunk."""
+-        symbols = []
+-
+-        if chunk.chunk_type == "function" and chunk.name:
+-            symbols.append(
+-                Symbol(
+-                    name=chunk.name,
+-                    symbol_type="function",
+-                    file_path=chunk.file_path,
+-                    line_number=chunk.start_line,
+-                    definition=chunk.content,
+-                )
+-            )
+-
+-        elif chunk.chunk_type == "class" and chunk.name:
+-            symbols.append(
+-                Symbol(
+-                    name=chunk.name,
+-                    symbol_type="class",
+-                    file_path=chunk.file_path,
+-                    line_number=chunk.start_line,
+-                    definition=chunk.content,
+-                )
+-            )
+-
+-        return symbols
+-
+-    def _extract_python_imports(self, content: str) -> List[str]:
+-        """Extract imported symbols from Python import statements using regex patterns."""
+-        imported = []
+-
+-        # Simple regex-based extraction for common patterns
+-
+-        # from module import symbol1, symbol2
+-        from_imports = re.findall(r"from\s+[\w.]+\s+import\s+([\w\s,]+)", content)
+-        for match in from_imports:
+-            symbols = [s.strip() for s in match.split(",")]
+-            imported.extend(symbols)
+-
+-        # import module as alias
+-        direct_imports = re.findall(r"import\s+([\w.]+)(?:\s+as\s+(\w+))?", content)
+-        for match in direct_imports:
+-            module_name = match[0]
+-            alias = match[1] if match[1] else module_name.split(".")[-1]
+-            imported.append(alias)
+-
+-        return imported
+-
+-    def _extract_js_imports(self, content: str) -> List[str]:
+-        """Extract imported symbols from JavaScript/TypeScript import statements using regex patterns."""
+-        imported = []
+-
+-        # import { symbol1, symbol2 } from 'module'
+-        named_imports = re.findall(r"import\s*\{\s*([\w\s,]+)\s*\}\s*from", content)
+-        for match in named_imports:
+-            symbols = [s.strip() for s in match.split(",")]
+-            imported.extend(symbols)
+-
+-        # import symbol from 'module'
+-        default_imports = re.findall(r"import\s+(\w+)\s+from", content)
+-        imported.extend(default_imports)
+-
+-        return imported
+-
+-    def _extract_python_calls(self, content: str) -> List[str]:
+-        """Extract function calls from Python code using regex patterns, filtering out keywords."""
+-        calls = []
+-
+-        # Simple function call pattern: function_name(
+-        function_calls = re.findall(r"(\w+)\s*\(", content)
+-
+-        # Filter out keywords and built-ins
+-        python_keywords = {
+-            "if",
+-            "for",
+-            "while",
+-            "def",
+-            "class",
+-            "return",
+-            "import",
+-            "from",
+-            "try",
+-            "except",
+-            "with",
+-            "as",
+-            "print",
+-            "len",
+-            "str",
+-            "int",
+-            "float",
+-            "list",
+-            "dict",
+-            "set",
+-            "tuple",
+-            "bool",
+-            "range",
+-            "enumerate",
+-            "zip",
+-        }
+-
+-        for call in function_calls:
+-            if call not in python_keywords and len(call) > 1:
+-                calls.append(call)
+-
+-        return list(set(calls))  # Remove duplicates
+-
+-    def _extract_js_calls(self, content: str) -> List[str]:
+-        """Extract function calls from JavaScript/TypeScript code using regex patterns, filtering out keywords."""
+-        calls = []
+-
+-        # Function call pattern: function_name(
+-        function_calls = re.findall(r"(\w+)\s*\(", content)
+-
+-        # Filter out keywords and built-ins
+-        js_keywords = {
+-            "if",
+-            "for",
+-            "while",
+-            "function",
+-            "class",
+-            "return",
+-            "import",
+-            "from",
+-            "try",
+-            "catch",
+-            "console",
+-            "parseInt",
+-            "parseFloat",
+-            "String",
+-            "Number",
+-            "Array",
+-            "Object",
+-            "Boolean",
+-            "typeof",
+-            "instanceof",
+-        }
+-
+-        for call in function_calls:
+-            if call not in js_keywords and len(call) > 1:
+-                calls.append(call)
+-
+-        return list(set(calls))  # Remove duplicates
+diff --git a/processing/reranker.py b/processing/reranker.py
+index 36c8bca..5645b12 100644
+--- a/processing/reranker.py
++++ b/processing/reranker.py
+@@ -1,16 +1,12 @@
+-from typing import List, Dict, Tuple
++from typing import List
+ from dataclasses import dataclass
+-from core.vectordb import VectorMetadata
++from storage.vector_store import VectorSearchResult
+ from inference.openai_client import LLMClient
+-from utils.logging import get_logger
+-
+-logger = get_logger(__name__)
+ 
+ 
+ @dataclass
+ class RerankedResult:
+-    metadata: VectorMetadata
+-    content: str
++    result: VectorSearchResult
+     score: float
+     rank: int
+ 
+@@ -24,25 +20,22 @@ class CodeReranker:
+     async def rerank_search_results(
+         self,
+         query: str,
+-        search_results: List[Tuple[VectorMetadata, float]],
+-        chunk_contents: Dict[str, str],
++        search_results: List[VectorSearchResult],
+         top_k: int = 5,
+     ) -> List[RerankedResult]:
+         """Rerank search results by relevance."""
+         if not search_results:
+-            logger.debug("No search results to rerank.")
+             return []
+ 
+         # Prepare documents
+         documents = []
+-        metadata_list = []
++        result_list = []
+ 
+-        for metadata, score in search_results:
+-            content = chunk_contents.get(metadata.chunk_id, "")
+-            if content:
+-                doc_text = self._format_chunk(metadata, content)
++        for result in search_results:
++            if result.content:
++                doc_text = self._format_chunk(result)
+                 documents.append(doc_text)
+-                metadata_list.append((metadata, score))
++                result_list.append(result)
+ 
+         if not documents:
+             return []
+@@ -54,12 +47,11 @@ class CodeReranker:
+         results = []
+         for ranking in rankings:
+             doc_index = ranking["index"]
+-            if doc_index < len(metadata_list):
+-                metadata, original_score = metadata_list[doc_index]
++            if doc_index < len(result_list):
++                vector_result = result_list[doc_index]
+ 
+                 result = RerankedResult(
+-                    metadata=metadata,
+-                    content=documents[doc_index],
++                    result=vector_result,
+                     score=ranking["score"],
+                     rank=ranking["rank"],
+                 )
+@@ -67,6 +59,10 @@ class CodeReranker:
+ 
+         return results
+ 
+-    def _format_chunk(self, metadata: VectorMetadata, content: str) -> str:
++    def _format_chunk(self, result: VectorSearchResult) -> str:
+         """Format chunk for reranking."""
+-        return f"{metadata.chunk_type} {metadata.name or ''} in {metadata.file_path}:\n{content}"
++        metadata = result.metadata
++        chunk_type = metadata.get("chunk_type", "code")
++        name = metadata.get("name", "")
++        file_path = metadata.get("file_path", "")
++        return f"{chunk_type} {name} in {file_path}:\n{result.content}"
+diff --git a/pyproject.toml b/pyproject.toml
+index 1dde67a..6c6e61d 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -28,6 +28,15 @@ dependencies = [
+     "networkx>=3.0",
+     "python-louvain>=0.16",
+     "python-dotenv>=1.0.0",
++    "multilspy>=0.0.15",
++    "pyvis>=0.3.2",
++    "jinja2>=3.1.6",
++    "celery>=5.5.3",
++    "redis>=6.2.0",
++    "gitpython>=3.1.44",
++    "boto3>=1.39.4",
++    "qdrant-client>=1.14.3",
++    "neo4j>=5.28.1",
+ ]
+ 
+ [project.optional-dependencies]
+diff --git a/services/review_service.py b/services/review_service.py
+index 642c17e..b85edd8 100644
+--- a/services/review_service.py
++++ b/services/review_service.py
+@@ -1,26 +1,22 @@
+ """
+ Core review service that handles indexing and reviewing operations.
+-This service is used by both CLI and main.py entry points.
++Uses persistent databases (Qdrant + Neo4j) instead of file storage.
+ """
+ 
+-import os
+ import time
++import hashlib
+ from pathlib import Path
+ from typing import Optional
+ from dataclasses import dataclass
+-import pickle
+ 
+-from graph_engine.knowledge_graph import KnowledgeGraph
+-from graph_engine.graph_builder import GraphBuilder
++from storage.database import TurboReviewDatabase, CodeChunk
+ from graph_engine.summarizer import HierarchicalSummarizer
+-from graph_engine.search import Search
+-
+ from core.chunker import TreeSitterChunker
+-from core.vectordb import VectorDatabase
+ from inference.openai_client import LLMClient
+ from inference.prompt_builder import PromptBuilder
+ from processing.diff_processor import DiffProcessor
+ from processing.reranker import CodeReranker
++
+ from monitoring.telemetry import get_telemetry
+ from utils.logging import get_logger
+ 
+@@ -28,6 +24,7 @@ from utils.logging import get_logger
+ @dataclass
+ class ReviewResult:
+     """Result of a code review operation."""
++
+     review_content: str
+     changed_chunks_count: int
+     context_chunks_count: int
+@@ -35,18 +32,23 @@ class ReviewResult:
+ 
+ 
+ class ReviewService:
+-    """Core service for code review operations."""
+-    
+-    def __init__(self, config, logger_instance=None):
++    """Core service for code review operations using persistent databases."""
++
++    def __init__(self, config, logger_instance=None, database=None):
+         self.config = config
+         self.logger = logger_instance or get_logger(__name__)
+         self.telemetry = get_telemetry()
+         self.prompt_builder = PromptBuilder()
+-    
+-    async def index_repository(self, repo_path: str, output: str = "vector_db") -> bool:
+-        """Index a repository for code review."""
++        self.database = database or TurboReviewDatabase()
++
++    def _content_hash(self, content: str) -> str:
++        """Generate SHA-256 hash for content."""
++        return hashlib.sha256(content.encode("utf-8")).hexdigest()
++
++    async def index_repository(self, repo_path: str) -> bool:
++        """Index a repository for code review using persistent databases."""
+         with self.telemetry.trace_operation(
+-            "index_repository", {"repo_path": repo_path, "output": output}
++            "index_repository", {"repo_path": repo_path}
+         ):
+             self.logger.info(f"Indexing repository: {repo_path}")
+ 
+@@ -59,7 +61,9 @@ class ReviewService:
+                 elif path.is_dir():
+                     chunks = chunker.chunk_repository(str(path))
+                 else:
+-                    self.logger.error(f"Invalid path: {repo_path}. Must be a file or a directory.")
++                    self.logger.error(
++                        f"Invalid path: {repo_path}. Must be a file or a directory."
++                    )
+                     return False
+ 
+             self.logger.info(f"Found {len(chunks)} code chunks")
+@@ -71,24 +75,10 @@ class ReviewService:
+                 self.logger.warning("No code chunks found. Check repository path.")
+                 return False
+ 
+-            # Build Knowledge Graph
+-            try:
+-                with self.telemetry.trace_operation("build_knowledge_graph"):
+-                    kg = KnowledgeGraph()
+-                    builder = GraphBuilder(kg)
+-                    builder.build_graph_from_chunks(chunks)
+-                    graph_path = Path(self.config.vector_db_path) / f"{output}.graph"
+-                    os.makedirs(os.path.dirname(graph_path), exist_ok=True)
+-                    with open(graph_path, "wb") as f:
+-                        pickle.dump(kg, f)
+-                    self.logger.info(f"Knowledge Graph built and saved to {graph_path}")
+-            except Exception as e:
+-                self.logger.error(f"Error building or saving Knowledge Graph: {e}", exc_info=True)
+-                return False
+-
+-            # Generate embeddings
++            # Convert to CodeChunk objects and generate embeddings
+             async with LLMClient(config=self.config) as client:
+                 try:
++                    # Generate embeddings
+                     with self.telemetry.trace_operation(
+                         "generate_embeddings", {"chunk_count": len(chunks)}
+                     ):
+@@ -101,7 +91,9 @@ class ReviewService:
+                             batch = contents[i : i + batch_size]
+                             batch_embeddings = await client.embed_batch(batch)
+                             embeddings.extend(batch_embeddings)
+-                            self.logger.debug(f"Generated {len(embeddings)} embeddings so far.")
++                            self.logger.debug(
++                                f"Generated {len(embeddings)} embeddings so far."
++                            )
+ 
+                         embedding_duration = time.time() - embedding_start
+                         self.telemetry.record_embedding_duration(
+@@ -109,32 +101,120 @@ class ReviewService:
+                         )
+ 
+                     self.logger.info(f"Generated {len(embeddings)} embeddings")
++
++                    # Convert to CodeChunk objects with embeddings
++                    code_chunks = []
++                    for i, chunk in enumerate(chunks):
++                        content_hash = self._content_hash(chunk.content)
++
++                        code_chunk = CodeChunk(
++                            content_hash=content_hash,
++                            content=chunk.content,
++                            chunk_type=chunk.chunk_type,
++                            file_path=chunk.file_path,
++                            language=chunk.language,
++                            name=chunk.name or "",
++                            start_line=chunk.start_line,
++                            end_line=chunk.end_line,
++                            embedding=embeddings[i] if i < len(embeddings) else None,
++                            metadata={
++                                "parent_name": chunk.parent_name,
++                                "parent_type": chunk.parent_type,
++                                "full_signature": chunk.full_signature,
++                            },
++                        )
++                        code_chunks.append(code_chunk)
++
++                    # Store in database
++                    with self.telemetry.trace_operation("store_chunks"):
++                        success = self.database.store_code_chunks(code_chunks)
++                        if not success:
++                            self.logger.error("Failed to store chunks in database")
++                            return False
++
++                    self.logger.info(f"Stored {len(code_chunks)} chunks in database")
++
++                    # Generate summaries
++                    try:
++                        with self.telemetry.trace_operation("generate_summaries"):
++                            self.logger.info("Generating code summaries...")
++
++                            # Create a temporary knowledge graph for summarization
++                            # We'll use the graph database for relationships later
++                            from graph_engine.knowledge_graph import KnowledgeGraph
++
++                            temp_kg = KnowledgeGraph()
++
++                            # Add nodes to temp graph for summarization
++                            for chunk in code_chunks:
++                                node_id = chunk.content_hash
++                                temp_kg.add_node(
++                                    node_id,
++                                    chunk.chunk_type,
++                                    {
++                                        "content": chunk.content,
++                                        "content_hash": chunk.content_hash,
++                                        "file_path": chunk.file_path,
++                                        "language": chunk.language,
++                                        "name": chunk.name,
++                                        "start_line": chunk.start_line,
++                                        "end_line": chunk.end_line,
++                                        **chunk.metadata,
++                                    },
++                                )
++
++                            summarizer = HierarchicalSummarizer(temp_kg, client)
++
++                            # Get all node IDs for summarization
++                            chunk_hashes = [chunk.content_hash for chunk in code_chunks]
++
++                            if chunk_hashes:
++                                summaries = await summarizer.summarize_chunks_batch(
++                                    chunk_hashes
++                                )
++                                self.logger.info(
++                                    f"Generated {len(summaries)} code summaries"
++                                )
++
++                                # Update chunks with summaries
++                                for chunk in code_chunks:
++                                    if chunk.content_hash in summaries:
++                                        # Extract just the summary text from the formatted output
++                                        summary_text = summaries[chunk.content_hash]
++                                        if summary_text.startswith("["):
++                                            # Remove the header like "[Chunk Summary for function_name in file.py]"
++                                            lines = summary_text.split("\n", 1)
++                                            if len(lines) > 1:
++                                                summary_text = lines[1].strip()
++                                        chunk.summary = summary_text
++
++                                # Re-store chunks with summaries
++                                success = self.database.store_code_chunks(code_chunks)
++                                if not success:
++                                    self.logger.warning(
++                                        "Failed to update chunks with summaries"
++                                    )
++                            else:
++                                self.logger.info("No chunks found to summarize")
++
++                    except Exception as e:
++                        self.logger.error(
++                            f"Error generating summaries: {e}", exc_info=True
++                        )
++                        self.logger.warning("Continuing without summaries...")
++
+                 except Exception as e:
+-                    self.logger.error(f"Error generating embeddings: {e}")
++                    self.logger.error(f"Error during indexing: {e}")
+                     return False
+ 
+-            # Store in vector database
+-            try:
+-                with self.telemetry.trace_operation("store_vectors"):
+-                    db = VectorDatabase(dimension=self.config.vector_dimension)
+-                    db.add_chunks(chunks, embeddings)
+-                    db.save(str(Path(self.config.vector_db_path) / output))
+-                self.logger.info(f"Repository indexed successfully as '{output}'")
+-                return True
+-            except Exception as e:
+-                self.logger.error(f"Error saving index: {e}", exc_info=True)
+-                return False
+-    
++            self.logger.info("Repository indexed successfully")
++            return True
++
+     async def review_diff(
+-        self, 
+-        diff_file: str, 
+-        index: str = "vector_db", 
+-        repo_path: Optional[str] = None
++        self, diff_file: str, repo_path: Optional[str] = None
+     ) -> Optional[ReviewResult]:
+-        """Review a diff file using indexed code."""
+-        with self.telemetry.trace_operation(
+-            "review_diff", {"diff_file": diff_file, "index": index}
+-        ):
++        """Review a diff file using the database."""
++        with self.telemetry.trace_operation("review_diff", {"diff_file": diff_file}):
+             review_start = time.time()
+             self.logger.info(f"Reviewing diff: {diff_file}")
+ 
+@@ -148,7 +228,9 @@ class ReviewService:
+             # Process diff
+             with self.telemetry.trace_operation("process_diff"):
+                 processor = DiffProcessor()
+-                changed_chunks = processor.extract_changed_chunks(diff_content, repo_path)
++                changed_chunks = processor.extract_changed_chunks(
++                    diff_content, repo_path
++                )
+             self.logger.info(f"Found {len(changed_chunks)} changed chunks")
+ 
+             if not changed_chunks:
+@@ -157,108 +239,55 @@ class ReviewService:
+             else:
+                 query = processor.create_query_from_changes(changed_chunks)
+ 
+-            # Load vector database
+-            try:
+-                with self.telemetry.trace_operation("load_vector_db"):
+-                    db = VectorDatabase(dimension=self.config.vector_dimension)
+-                    db_path = str(Path(self.config.vector_db_path) / index)
+-                    db.load(db_path)
+-                self.logger.info(f"Loaded index '{index}' with {len(db.metadata)} chunks")
+-            except Exception as e:
+-                self.logger.error(f"Error loading index '{index}': {e}")
+-                return None
+-
+-            # Load Knowledge Graph
+-            kg = None
+-            try:
+-                graph_path = Path(self.config.vector_db_path) / f"{index}.graph"
+-                if graph_path.exists():
+-                    with open(graph_path, "rb") as f:
+-                        kg = pickle.load(f)
+-                    self.logger.info(f"Loaded Knowledge Graph from {graph_path}")
+-                else:
+-                    self.logger.warning(f"Knowledge Graph not found at {graph_path}")
+-            except Exception as e:
+-                self.logger.error(f"Error loading Knowledge Graph: {e}")
+-
+-            # Initialize GraphRAG components
+-            summarizer = None
+-            search_engine = None
+-            if kg:
+-                summarizer = HierarchicalSummarizer(kg)
+-                search_engine = Search(kg)
+-
+             # Search and review
+             async with LLMClient(config=self.config) as client:
+                 try:
+-                    # Search for related code
++                    # Search for related code using vector similarity
+                     with self.telemetry.trace_operation("vector_search"):
+                         retrieval_start = time.time()
+                         query_embedding = await client.embed(query)
+-                        search_results = db.search(query_embedding, k=self.config.vector_search_k)
++
++                        # Search in database
++                        search_results = self.database.search_similar_code(
++                            query_embedding,
++                            limit=self.config.vector_search_k,
++                            score_threshold=0.7,
++                        )
++
+                         retrieval_duration = time.time() - retrieval_start
+                         self.telemetry.record_retrieval_duration(
+                             retrieval_duration, {"query_type": "diff_review"}
+                         )
+ 
++                    self.logger.info(
++                        f"Original vector search results ({len(search_results)} chunks):"
++                    )
++                    for i, result in enumerate(search_results):
++                        self.logger.info(
++                            f"  {i + 1}. {result.metadata.get('file_path', 'unknown')}:{result.metadata.get('chunk_type', 'unknown')} '{result.metadata.get('name', 'unnamed')}' (vector score: {result.score:.3f})"
++                        )
++
+                     reranked_results = []
+                     if search_results:
+                         # Rerank results
+                         with self.telemetry.trace_operation("rerank_results"):
+                             reranker = CodeReranker(client)
+-                            chunk_contents = {
+-                                meta.chunk_id: db.get_content(meta.chunk_id)
+-                                for meta, _ in search_results
+-                            }
++
+                             reranked_results = await reranker.rerank_search_results(
+-                                query, search_results, chunk_contents, top_k=self.config.rerank_top_k
++                                query,
++                                search_results,
++                                top_k=self.config.rerank_top_k,
+                             )
+ 
+-                        # Add content to reranked results and log info
+-                        self.logger.info(f"Retrieved {len(reranked_results)} reranked chunks:")
++                        # Log reranked results
++                        self.logger.info(
++                            f"After reranking ({len(reranked_results)} chunks):"
++                        )
+                         for i, result in enumerate(reranked_results):
+-                            result.content = db.get_content(result.metadata.chunk_id)
+-                            self.logger.info(f"  {i+1}. {result.metadata.file_path}:{result.metadata.chunk_type} '{result.metadata.name}' (score: {result.score:.3f})")
+-                            if hasattr(result.metadata, 'parent_name') and result.metadata.parent_name:
+-                                self.logger.info(f"      Parent: {result.metadata.parent_type} '{result.metadata.parent_name}'")
+-                            if hasattr(result.metadata, 'full_signature') and result.metadata.full_signature:
+-                                self.logger.info(f"      Signature: {result.metadata.full_signature}")
+-                            self.logger.debug(f"      Content: {result.content[:150]}...")
+-
+-                    # --- GraphRAG Context Enrichment ---
+-                    graph_context = []
+-                    if kg and search_engine and summarizer:
+-                        self.logger.info("Enriching context with Knowledge Graph...")
+-                        processed_chunks = 0
+-                        for changed_chunk in changed_chunks[:10]:  # Limit to first 10 for logging
+-                            # Try to find the corresponding node in the graph
+-                            node_id_prefix = f"{changed_chunk.chunk.chunk_type}_{changed_chunk.chunk.name or ''}_{changed_chunk.chunk.file_path}_{changed_chunk.chunk.start_line}"
+-                            matching_nodes = [n for n in kg.graph.nodes if n.startswith(node_id_prefix)]
+-
+-                            if matching_nodes:
+-                                changed_node_id = matching_nodes[0]
+-                                self.logger.info(f"Found graph node for {changed_chunk.chunk.file_path}:{changed_chunk.chunk.chunk_type} '{changed_chunk.chunk.name}'")
+-                                
+-                                # Perform local search around the changed chunk
+-                                local_search_results = search_engine.local_search(changed_node_id, query, depth=1)
+-                                self.logger.info(f"  Local search returned {len(local_search_results)} related nodes")
+-                                for res in local_search_results:
+-                                    graph_context.append(res['attributes'].get('content', ''))
+-                                
+-                                # Get community summary if available
+-                                communities = kg.detect_communities()
+-                                if communities:
+-                                    for comm_id, nodes in communities.items():
+-                                        if changed_node_id in nodes:
+-                                            self.logger.info(f"  Found in community {comm_id} with {len(nodes)} nodes")
+-                                            community_summary = await summarizer.summarize_community(nodes)
+-                                            graph_context.append(community_summary)
+-                                            break
+-                                processed_chunks += 1
+-                            else:
+-                                self.logger.debug(f"No graph node found for changed chunk: {changed_chunk.chunk.file_path}:{changed_chunk.chunk.start_line}")
+-                        
+-                        self.logger.info(f"Graph enrichment complete: processed {processed_chunks} chunks, added {len(graph_context)} context items")
++                            metadata = result.result.metadata
++                            self.logger.info(
++                                f"  {i + 1}. {metadata.get('file_path', 'unknown')}:{metadata.get('chunk_type', 'unknown')} '{metadata.get('name', 'unnamed')}' (score: {result.score:.3f})"
++                            )
+ 
+                     # Generate review using PromptBuilder
+                     self.logger.info("Building review prompt...")
+@@ -266,13 +295,14 @@ class ReviewService:
+                         diff_content=diff_content,
+                         context_chunks=reranked_results,
+                         changed_chunks=changed_chunks,
+-                        graph_context=graph_context # Pass graph-enriched context
++                        graph_context=[],  # No graph context for now
++                    )
++                    self.logger.info(
++                        f"Generated prompt: {len(review_prompt)} characters"
+                     )
+-                    self.logger.info(f"Generated prompt: {len(review_prompt)} characters")
+                     self.logger.info(f"  Diff content: {len(diff_content)} chars")
+                     self.logger.info(f"  Context chunks: {len(reranked_results)}")
+                     self.logger.info(f"  Changed chunks: {len(changed_chunks)}")
+-                    self.logger.info(f"  Graph context items: {len(graph_context)}")
+ 
+                     self.logger.info("Generating review...")
+                     with self.telemetry.trace_operation("generate_review"):
+@@ -290,14 +320,16 @@ class ReviewService:
+                         review_content=review,
+                         changed_chunks_count=len(changed_chunks),
+                         context_chunks_count=len(reranked_results),
+-                        duration=review_duration
++                        duration=review_duration,
+                     )
+ 
+                 except Exception as e:
+                     self.logger.error(f"Error during review: {e}")
+                     return None
+-    
+-    async def quick_review(self, repo_path: str, diff_file: str) -> Optional[ReviewResult]:
++
++    async def quick_review(
++        self, repo_path: str, diff_file: str
++    ) -> Optional[ReviewResult]:
+         """Quick review without pre-indexing."""
+         review_start = time.time()
+         self.logger.info(f"Quick review: {diff_file}")
+@@ -314,15 +346,17 @@ class ReviewService:
+ 
+         async with LLMClient(config=self.config) as client:
+             try:
+-                review = await client.complete([{"role": "user", "content": review_prompt}])
+-                
++                review = await client.complete(
++                    [{"role": "user", "content": review_prompt}]
++                )
++
+                 review_duration = time.time() - review_start
+                 return ReviewResult(
+                     review_content=review,
+                     changed_chunks_count=0,  # Not calculated for quick review
+                     context_chunks_count=0,  # Not calculated for quick review
+-                    duration=review_duration
++                    duration=review_duration,
+                 )
+             except Exception as e:
+                 self.logger.error(f"Error during quick review: {e}")
+-                return None
+\ No newline at end of file
++                return None
+diff --git a/test_change.py b/test_change.py
+deleted file mode 100644
+index fc18d05..0000000
+--- a/test_change.py
++++ /dev/null
+@@ -1 +0,0 @@
+-def test_function():\n    print('hello world')
+diff --git a/uv.lock b/uv.lock
+index a3f0b5d..fd678af 100644
+--- a/uv.lock
++++ b/uv.lock
+@@ -98,6 +98,18 @@ wheels = [
+     { url = "https://files.pythonhosted.org/packages/fb/76/641ae371508676492379f16e2fa48f4e2c11741bd63c48be4b12a6b09cba/aiosignal-1.4.0-py3-none-any.whl", hash = "sha256:053243f8b92b990551949e63930a839ff0cf0b0ebbe0597b0f3fb19e1a0fe82e", size = 7490, upload-time = "2025-07-03T22:54:42.156Z" },
+ ]
+ 
++[[package]]
++name = "amqp"
++version = "5.3.1"
++source = { registry = "https://pypi.org/simple" }
++dependencies = [
++    { name = "vine" },
++]
++sdist = { url = "https://files.pythonhosted.org/packages/79/fc/ec94a357dfc6683d8c86f8b4cfa5416a4c36b28052ec8260c77aca96a443/amqp-5.3.1.tar.gz", hash = "sha256:cddc00c725449522023bad949f70fff7b48f0b1ade74d170a6f10ab044739432", size = 129013, upload-time = "2024-11-12T19:55:44.051Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/26/99/fc813cd978842c26c82534010ea849eee9ab3a13ea2b74e95cb9c99e747b/amqp-5.3.1-py3-none-any.whl", hash = "sha256:43b3319e1b4e7d1251833a93d672b4af1e40f3d632d479b98661a95f117880a2", size = 50944, upload-time = "2024-11-12T19:55:41.782Z" },
++]
++
+ [[package]]
+ name = "annotated-types"
+ version = "0.7.0"
+@@ -122,6 +134,15 @@ wheels = [
+     { url = "https://files.pythonhosted.org/packages/a1/ee/48ca1a7c89ffec8b6a0c5d02b89c305671d5ffd8d3c94acf8b8c408575bb/anyio-4.9.0-py3-none-any.whl", hash = "sha256:9f76d541cad6e36af7beb62e978876f3b41e3e04f2c1fbf0884604c0a9c4d93c", size = 100916, upload-time = "2025-03-17T00:02:52.713Z" },
+ ]
+ 
++[[package]]
++name = "asttokens"
++version = "3.0.0"
++source = { registry = "https://pypi.org/simple" }
++sdist = { url = "https://files.pythonhosted.org/packages/4a/e7/82da0a03e7ba5141f05cce0d302e6eed121ae055e0456ca228bf693984bc/asttokens-3.0.0.tar.gz", hash = "sha256:0dcd8baa8d62b0c1d118b399b2ddba3c4aff271d0d7a9e0d4c1681c79035bbc7", size = 61978, upload-time = "2024-11-30T04:30:14.439Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/25/8a/c46dcc25341b5bce5472c718902eb3d38600a903b14fa6aeecef3f21a46f/asttokens-3.0.0-py3-none-any.whl", hash = "sha256:e3078351a059199dd5138cb1c706e6430c05eff2ff136af5eb4790f9d28932e2", size = 26918, upload-time = "2024-11-30T04:30:10.946Z" },
++]
++
+ [[package]]
+ name = "async-timeout"
+ version = "5.0.1"
+@@ -149,6 +170,15 @@ wheels = [
+     { url = "https://files.pythonhosted.org/packages/77/06/bb80f5f86020c4551da315d78b3ab75e8228f89f0162f2c3a819e407941a/attrs-25.3.0-py3-none-any.whl", hash = "sha256:427318ce031701fea540783410126f03899a97ffc6f61596ad581ac2e40e3bc3", size = 63815, upload-time = "2025-03-13T11:10:21.14Z" },
+ ]
+ 
++[[package]]
++name = "billiard"
++version = "4.2.1"
++source = { registry = "https://pypi.org/simple" }
++sdist = { url = "https://files.pythonhosted.org/packages/7c/58/1546c970afcd2a2428b1bfafecf2371d8951cc34b46701bea73f4280989e/billiard-4.2.1.tar.gz", hash = "sha256:12b641b0c539073fc8d3f5b8b7be998956665c4233c7c1fcd66a7e677c4fb36f", size = 155031, upload-time = "2024-09-21T13:40:22.491Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/30/da/43b15f28fe5f9e027b41c539abc5469052e9d48fd75f8ff094ba2a0ae767/billiard-4.2.1-py3-none-any.whl", hash = "sha256:40b59a4ac8806ba2c2369ea98d876bc6108b051c227baffd928c644d15d8f3cb", size = 86766, upload-time = "2024-09-21T13:40:20.188Z" },
++]
++
+ [[package]]
+ name = "black"
+ version = "25.1.0"
+@@ -179,6 +209,67 @@ wheels = [
+     { url = "https://files.pythonhosted.org/packages/09/71/54e999902aed72baf26bca0d50781b01838251a462612966e9fc4891eadd/black-25.1.0-py3-none-any.whl", hash = "sha256:95e8176dae143ba9097f351d174fdaf0ccd29efb414b362ae3fd72bf0f710717", size = 207646, upload-time = "2025-01-29T04:15:38.082Z" },
+ ]
+ 
++[[package]]
++name = "boto3"
++version = "1.39.4"
++source = { registry = "https://pypi.org/simple" }
++dependencies = [
++    { name = "botocore" },
++    { name = "jmespath" },
++    { name = "s3transfer" },
++]
++sdist = { url = "https://files.pythonhosted.org/packages/6a/1f/b7510dcd26eb14735d6f4b2904e219b825660425a0cf0b6f35b84c7249b0/boto3-1.39.4.tar.gz", hash = "sha256:6c955729a1d70181bc8368e02a7d3f350884290def63815ebca8408ee6d47571", size = 111829, upload-time = "2025-07-09T19:23:01.512Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/12/5c/93292e4d8c809950c13950b3168e0eabdac828629c21047959251ad3f28c/boto3-1.39.4-py3-none-any.whl", hash = "sha256:f8e9534b429121aa5c5b7c685c6a94dd33edf14f87926e9a182d5b50220ba284", size = 139908, upload-time = "2025-07-09T19:22:59.808Z" },
++]
++
++[[package]]
++name = "botocore"
++version = "1.39.4"
++source = { registry = "https://pypi.org/simple" }
++dependencies = [
++    { name = "jmespath" },
++    { name = "python-dateutil" },
++    { name = "urllib3" },
++]
++sdist = { url = "https://files.pythonhosted.org/packages/e6/9f/21c823ea2fae3fa5a6c9e8caaa1f858acd55018e6d317505a4f14c5bb999/botocore-1.39.4.tar.gz", hash = "sha256:e662ac35c681f7942a93f2ec7b4cde8f8b56dd399da47a79fa3e370338521a56", size = 14136116, upload-time = "2025-07-09T19:22:49.811Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/58/44/f120319e0a9afface645e99f300175b9b308e4724cb400b32e1bd6eb3060/botocore-1.39.4-py3-none-any.whl", hash = "sha256:c41e167ce01cfd1973c3fa9856ef5244a51ddf9c82cb131120d8617913b6812a", size = 13795516, upload-time = "2025-07-09T19:22:44.446Z" },
++]
++
++[[package]]
++name = "cattrs"
++version = "25.1.1"
++source = { registry = "https://pypi.org/simple" }
++dependencies = [
++    { name = "attrs" },
++    { name = "exceptiongroup", marker = "python_full_version < '3.11'" },
++    { name = "typing-extensions" },
++]
++sdist = { url = "https://files.pythonhosted.org/packages/57/2b/561d78f488dcc303da4639e02021311728fb7fda8006dd2835550cddd9ed/cattrs-25.1.1.tar.gz", hash = "sha256:c914b734e0f2d59e5b720d145ee010f1fd9a13ee93900922a2f3f9d593b8382c", size = 435016, upload-time = "2025-06-04T20:27:15.44Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/18/b0/215274ef0d835bbc1056392a367646648b6084e39d489099959aefcca2af/cattrs-25.1.1-py3-none-any.whl", hash = "sha256:1b40b2d3402af7be79a7e7e097a9b4cd16d4c06e6d526644b0b26a063a1cc064", size = 69386, upload-time = "2025-06-04T20:27:13.969Z" },
++]
++
++[[package]]
++name = "celery"
++version = "5.5.3"
++source = { registry = "https://pypi.org/simple" }
++dependencies = [
++    { name = "billiard" },
++    { name = "click" },
++    { name = "click-didyoumean" },
++    { name = "click-plugins" },
++    { name = "click-repl" },
++    { name = "kombu" },
++    { name = "python-dateutil" },
++    { name = "vine" },
++]
++sdist = { url = "https://files.pythonhosted.org/packages/bb/7d/6c289f407d219ba36d8b384b42489ebdd0c84ce9c413875a8aae0c85f35b/celery-5.5.3.tar.gz", hash = "sha256:6c972ae7968c2b5281227f01c3a3f984037d21c5129d07bf3550cc2afc6b10a5", size = 1667144, upload-time = "2025-06-01T11:08:12.563Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/c9/af/0dcccc7fdcdf170f9a1585e5e96b6fb0ba1749ef6be8c89a6202284759bd/celery-5.5.3-py3-none-any.whl", hash = "sha256:0b5761a07057acee94694464ca482416b959568904c9dfa41ce8413a7d65d525", size = 438775, upload-time = "2025-06-01T11:08:09.94Z" },
++]
++
+ [[package]]
+ name = "certifi"
+ version = "2025.6.15"
+@@ -248,6 +339,43 @@ wheels = [
+     { url = "https://files.pythonhosted.org/packages/85/32/10bb5764d90a8eee674e9dc6f4db6a0ab47c8c4d0d83c27f7c39ac415a4d/click-8.2.1-py3-none-any.whl", hash = "sha256:61a3265b914e850b85317d0b3109c7f8cd35a670f963866005d6ef1d5175a12b", size = 102215, upload-time = "2025-05-20T23:19:47.796Z" },
+ ]
+ 
++[[package]]
++name = "click-didyoumean"
++version = "0.3.1"
++source = { registry = "https://pypi.org/simple" }
++dependencies = [
++    { name = "click" },
++]
++sdist = { url = "https://files.pythonhosted.org/packages/30/ce/217289b77c590ea1e7c24242d9ddd6e249e52c795ff10fac2c50062c48cb/click_didyoumean-0.3.1.tar.gz", hash = "sha256:4f82fdff0dbe64ef8ab2279bd6aa3f6a99c3b28c05aa09cbfc07c9d7fbb5a463", size = 3089, upload-time = "2024-03-24T08:22:07.499Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/1b/5b/974430b5ffdb7a4f1941d13d83c64a0395114503cc357c6b9ae4ce5047ed/click_didyoumean-0.3.1-py3-none-any.whl", hash = "sha256:5c4bb6007cfea5f2fd6583a2fb6701a22a41eb98957e63d0fac41c10e7c3117c", size = 3631, upload-time = "2024-03-24T08:22:06.356Z" },
++]
++
++[[package]]
++name = "click-plugins"
++version = "1.1.1.2"
++source = { registry = "https://pypi.org/simple" }
++dependencies = [
++    { name = "click" },
++]
++sdist = { url = "https://files.pythonhosted.org/packages/c3/a4/34847b59150da33690a36da3681d6bbc2ec14ee9a846bc30a6746e5984e4/click_plugins-1.1.1.2.tar.gz", hash = "sha256:d7af3984a99d243c131aa1a828331e7630f4a88a9741fd05c927b204bcf92261", size = 8343, upload-time = "2025-06-25T00:47:37.555Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/3d/9a/2abecb28ae875e39c8cad711eb1186d8d14eab564705325e77e4e6ab9ae5/click_plugins-1.1.1.2-py2.py3-none-any.whl", hash = "sha256:008d65743833ffc1f5417bf0e78e8d2c23aab04d9745ba817bd3e71b0feb6aa6", size = 11051, upload-time = "2025-06-25T00:47:36.731Z" },
++]
++
++[[package]]
++name = "click-repl"
++version = "0.3.0"
++source = { registry = "https://pypi.org/simple" }
++dependencies = [
++    { name = "click" },
++    { name = "prompt-toolkit" },
++]
++sdist = { url = "https://files.pythonhosted.org/packages/cb/a2/57f4ac79838cfae6912f997b4d1a64a858fb0c86d7fcaae6f7b58d267fca/click-repl-0.3.0.tar.gz", hash = "sha256:17849c23dba3d667247dc4defe1757fff98694e90fe37474f3feebb69ced26a9", size = 10449, upload-time = "2023-06-15T12:43:51.141Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/52/40/9d857001228658f0d59e97ebd4c346fe73e138c6de1bce61dc568a57c7f8/click_repl-0.3.0-py3-none-any.whl", hash = "sha256:fb7e06deb8da8de86180a33a9da97ac316751c094c6899382da7feeeeb51b812", size = 10289, upload-time = "2023-06-15T12:43:48.626Z" },
++]
++
+ [[package]]
+ name = "colorama"
+ version = "0.4.6"
+@@ -257,6 +385,15 @@ wheels = [
+     { url = "https://files.pythonhosted.org/packages/d1/d6/3965ed04c63042e047cb6a3e6ed1a63a35087b6a609aa3a15ed8ac56c221/colorama-0.4.6-py2.py3-none-any.whl", hash = "sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6", size = 25335, upload-time = "2022-10-25T02:36:20.889Z" },
+ ]
+ 
++[[package]]
++name = "decorator"
++version = "5.2.1"
++source = { registry = "https://pypi.org/simple" }
++sdist = { url = "https://files.pythonhosted.org/packages/43/fa/6d96a0978d19e17b68d634497769987b16c8f4cd0a7a05048bec693caa6b/decorator-5.2.1.tar.gz", hash = "sha256:65f266143752f734b0a7cc83c46f4618af75b8c5911b00ccb61d0ac9b6da0360", size = 56711, upload-time = "2025-02-24T04:41:34.073Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/4e/8c/f3147f5c4b73e7550fe5f9352eaa956ae838d5c51eb58e7a25b9f3e2643b/decorator-5.2.1-py3-none-any.whl", hash = "sha256:d316bb415a2d9e2d2b3abcc4084c6502fc09240e292cd76a76afc106a1c8e04a", size = 9190, upload-time = "2025-02-24T04:41:32.565Z" },
++]
++
+ [[package]]
+ name = "distro"
+ version = "1.9.0"
+@@ -266,6 +403,19 @@ wheels = [
+     { url = "https://files.pythonhosted.org/packages/12/b3/231ffd4ab1fc9d679809f356cebee130ac7daa00d6d6f3206dd4fd137e9e/distro-1.9.0-py3-none-any.whl", hash = "sha256:7bffd925d65168f85027d8da9af6bddab658135b840670a223589bc0c8ef02b2", size = 20277, upload-time = "2023-12-24T09:54:30.421Z" },
+ ]
+ 
++[[package]]
++name = "docstring-to-markdown"
++version = "0.17"
++source = { registry = "https://pypi.org/simple" }
++dependencies = [
++    { name = "importlib-metadata" },
++    { name = "typing-extensions" },
++]
++sdist = { url = "https://files.pythonhosted.org/packages/52/d8/8abe80d62c5dce1075578031bcfde07e735bcf0afe2886dd48b470162ab4/docstring_to_markdown-0.17.tar.gz", hash = "sha256:df72a112294c7492487c9da2451cae0faeee06e86008245c188c5761c9590ca3", size = 32260, upload-time = "2025-05-02T15:09:07.932Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/56/7b/af3d0da15bed3a8665419bb3a630585756920f4ad67abfdfef26240ebcc0/docstring_to_markdown-0.17-py3-none-any.whl", hash = "sha256:fd7d5094aa83943bf5f9e1a13701866b7c452eac19765380dead666e36d3711c", size = 23479, upload-time = "2025-05-02T15:09:06.676Z" },
++]
++
+ [[package]]
+ name = "exceptiongroup"
+ version = "1.3.0"
+@@ -278,6 +428,15 @@ wheels = [
+     { url = "https://files.pythonhosted.org/packages/36/f4/c6e662dade71f56cd2f3735141b265c3c79293c109549c1e6933b0651ffc/exceptiongroup-1.3.0-py3-none-any.whl", hash = "sha256:4d111e6e0c13d0644cad6ddaa7ed0261a0b36971f6d23e7ec9b4b9097da78a10", size = 16674, upload-time = "2025-05-10T17:42:49.33Z" },
+ ]
+ 
++[[package]]
++name = "executing"
++version = "2.2.0"
++source = { registry = "https://pypi.org/simple" }
++sdist = { url = "https://files.pythonhosted.org/packages/91/50/a9d80c47ff289c611ff12e63f7c5d13942c65d68125160cefd768c73e6e4/executing-2.2.0.tar.gz", hash = "sha256:5d108c028108fe2551d1a7b2e8b713341e2cb4fc0aa7dcf966fa4327a5226755", size = 978693, upload-time = "2025-01-22T15:41:29.403Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/7b/8f/c4d9bafc34ad7ad5d8dc16dd1347ee0e507a52c3adb6bfa8887e1c6a26ba/executing-2.2.0-py2.py3-none-any.whl", hash = "sha256:11387150cad388d62750327a53d3339fad4888b39a6fe233c3afbb54ecffd3aa", size = 26702, upload-time = "2025-01-22T15:41:25.929Z" },
++]
++
+ [[package]]
+ name = "faiss-cpu"
+ version = "1.11.0"
+@@ -379,6 +538,30 @@ wheels = [
+     { url = "https://files.pythonhosted.org/packages/ee/45/b82e3c16be2182bff01179db177fe144d58b5dc787a7d4492c6ed8b9317f/frozenlist-1.7.0-py3-none-any.whl", hash = "sha256:9a5af342e34f7e97caf8c995864c7a396418ae2859cc6fdf1b1073020d516a7e", size = 13106, upload-time = "2025-06-09T23:02:34.204Z" },
+ ]
+ 
++[[package]]
++name = "gitdb"
++version = "4.0.12"
++source = { registry = "https://pypi.org/simple" }
++dependencies = [
++    { name = "smmap" },
++]
++sdist = { url = "https://files.pythonhosted.org/packages/72/94/63b0fc47eb32792c7ba1fe1b694daec9a63620db1e313033d18140c2320a/gitdb-4.0.12.tar.gz", hash = "sha256:5ef71f855d191a3326fcfbc0d5da835f26b13fbcba60c32c21091c349ffdb571", size = 394684, upload-time = "2025-01-02T07:20:46.413Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/a0/61/5c78b91c3143ed5c14207f463aecfc8f9dbb5092fb2869baf37c273b2705/gitdb-4.0.12-py3-none-any.whl", hash = "sha256:67073e15955400952c6565cc3e707c554a4eea2e428946f7a4c162fab9bd9bcf", size = 62794, upload-time = "2025-01-02T07:20:43.624Z" },
++]
++
++[[package]]
++name = "gitpython"
++version = "3.1.44"
++source = { registry = "https://pypi.org/simple" }
++dependencies = [
++    { name = "gitdb" },
++]
++sdist = { url = "https://files.pythonhosted.org/packages/c0/89/37df0b71473153574a5cdef8f242de422a0f5d26d7a9e231e6f169b4ad14/gitpython-3.1.44.tar.gz", hash = "sha256:c87e30b26253bf5418b01b0660f818967f3c503193838337fe5e573331249269", size = 214196, upload-time = "2025-01-02T07:32:43.59Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/1d/9a/4114a9057db2f1462d5c8f8390ab7383925fe1ac012eaa42402ad65c2963/GitPython-3.1.44-py3-none-any.whl", hash = "sha256:9e0e10cda9bed1ee64bc9a6de50e7e38a9c9943241cd7f585f6df3ed28011110", size = 207599, upload-time = "2025-01-02T07:32:40.731Z" },
++]
++
+ [[package]]
+ name = "googleapis-common-protos"
+ version = "1.70.0"
+@@ -438,6 +621,28 @@ wheels = [
+     { url = "https://files.pythonhosted.org/packages/04/4b/29cac41a4d98d144bf5f6d33995617b185d14b22401f75ca86f384e87ff1/h11-0.16.0-py3-none-any.whl", hash = "sha256:63cf8bbe7522de3bf65932fda1d9c2772064ffb3dae62d55932da54b31cb6c86", size = 37515, upload-time = "2025-04-24T03:35:24.344Z" },
+ ]
+ 
++[[package]]
++name = "h2"
++version = "4.2.0"
++source = { registry = "https://pypi.org/simple" }
++dependencies = [
++    { name = "hpack" },
++    { name = "hyperframe" },
++]
++sdist = { url = "https://files.pythonhosted.org/packages/1b/38/d7f80fd13e6582fb8e0df8c9a653dcc02b03ca34f4d72f34869298c5baf8/h2-4.2.0.tar.gz", hash = "sha256:c8a52129695e88b1a0578d8d2cc6842bbd79128ac685463b887ee278126ad01f", size = 2150682, upload-time = "2025-02-02T07:43:51.815Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/d0/9e/984486f2d0a0bd2b024bf4bc1c62688fcafa9e61991f041fb0e2def4a982/h2-4.2.0-py3-none-any.whl", hash = "sha256:479a53ad425bb29af087f3458a61d30780bc818e4ebcf01f0b536ba916462ed0", size = 60957, upload-time = "2025-02-01T11:02:26.481Z" },
++]
++
++[[package]]
++name = "hpack"
++version = "4.1.0"
++source = { registry = "https://pypi.org/simple" }
++sdist = { url = "https://files.pythonhosted.org/packages/2c/48/71de9ed269fdae9c8057e5a4c0aa7402e8bb16f2c6e90b3aa53327b113f8/hpack-4.1.0.tar.gz", hash = "sha256:ec5eca154f7056aa06f196a557655c5b009b382873ac8d1e66e79e87535f1dca", size = 51276, upload-time = "2025-01-22T21:44:58.347Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/07/c6/80c95b1b2b94682a72cbdbfb85b81ae2daffa4291fbfa1b1464502ede10d/hpack-4.1.0-py3-none-any.whl", hash = "sha256:157ac792668d995c657d93111f46b4535ed114f0c9c8d672271bbec7eae1b496", size = 34357, upload-time = "2025-01-22T21:44:56.92Z" },
++]
++
+ [[package]]
+ name = "httpcore"
+ version = "1.0.9"
+@@ -466,6 +671,20 @@ wheels = [
+     { url = "https://files.pythonhosted.org/packages/2a/39/e50c7c3a983047577ee07d2a9e53faf5a69493943ec3f6a384bdc792deb2/httpx-0.28.1-py3-none-any.whl", hash = "sha256:d909fcccc110f8c7faf814ca82a9a4d816bc5a6dbfea25d6591d6985b8ba59ad", size = 73517, upload-time = "2024-12-06T15:37:21.509Z" },
+ ]
+ 
++[package.optional-dependencies]
++http2 = [
++    { name = "h2" },
++]
++
++[[package]]
++name = "hyperframe"
++version = "6.1.0"
++source = { registry = "https://pypi.org/simple" }
++sdist = { url = "https://files.pythonhosted.org/packages/02/e7/94f8232d4a74cc99514c13a9f995811485a6903d48e5d952771ef6322e30/hyperframe-6.1.0.tar.gz", hash = "sha256:f630908a00854a7adeabd6382b43923a4c4cd4b821fcb527e6ab9e15382a3b08", size = 26566, upload-time = "2025-01-22T21:41:49.302Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/48/30/47d0bf6072f7252e6521f3447ccfa40b421b6824517f82854703d0f5a98b/hyperframe-6.1.0-py3-none-any.whl", hash = "sha256:b03380493a519fce58ea5af42e4a42317bf9bd425596f7a0835ffce80f1a42e5", size = 13007, upload-time = "2025-01-22T21:41:47.295Z" },
++]
++
+ [[package]]
+ name = "idna"
+ version = "3.10"
+@@ -496,6 +715,109 @@ wheels = [
+     { url = "https://files.pythonhosted.org/packages/2c/e1/e6716421ea10d38022b952c159d5161ca1193197fb744506875fbb87ea7b/iniconfig-2.1.0-py3-none-any.whl", hash = "sha256:9deba5723312380e77435581c6bf4935c94cbfab9b1ed33ef8d238ea168eb760", size = 6050, upload-time = "2025-03-19T20:10:01.071Z" },
+ ]
+ 
++[[package]]
++name = "ipython"
++version = "8.37.0"
++source = { registry = "https://pypi.org/simple" }
++resolution-markers = [
++    "python_full_version < '3.11'",
++]
++dependencies = [
++    { name = "colorama", marker = "python_full_version < '3.11' and sys_platform == 'win32'" },
++    { name = "decorator", marker = "python_full_version < '3.11'" },
++    { name = "exceptiongroup", marker = "python_full_version < '3.11'" },
++    { name = "jedi", marker = "python_full_version < '3.11'" },
++    { name = "matplotlib-inline", marker = "python_full_version < '3.11'" },
++    { name = "pexpect", marker = "python_full_version < '3.11' and sys_platform != 'emscripten' and sys_platform != 'win32'" },
++    { name = "prompt-toolkit", marker = "python_full_version < '3.11'" },
++    { name = "pygments", marker = "python_full_version < '3.11'" },
++    { name = "stack-data", marker = "python_full_version < '3.11'" },
++    { name = "traitlets", marker = "python_full_version < '3.11'" },
++    { name = "typing-extensions", marker = "python_full_version < '3.11'" },
++]
++sdist = { url = "https://files.pythonhosted.org/packages/85/31/10ac88f3357fc276dc8a64e8880c82e80e7459326ae1d0a211b40abf6665/ipython-8.37.0.tar.gz", hash = "sha256:ca815841e1a41a1e6b73a0b08f3038af9b2252564d01fc405356d34033012216", size = 5606088, upload-time = "2025-05-31T16:39:09.613Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/91/d0/274fbf7b0b12643cbbc001ce13e6a5b1607ac4929d1b11c72460152c9fc3/ipython-8.37.0-py3-none-any.whl", hash = "sha256:ed87326596b878932dbcb171e3e698845434d8c61b8d8cd474bf663041a9dcf2", size = 831864, upload-time = "2025-05-31T16:39:06.38Z" },
++]
++
++[[package]]
++name = "ipython"
++version = "9.4.0"
++source = { registry = "https://pypi.org/simple" }
++resolution-markers = [
++    "python_full_version >= '3.12'",
++    "python_full_version == '3.11.*'",
++]
++dependencies = [
++    { name = "colorama", marker = "python_full_version >= '3.11' and sys_platform == 'win32'" },
++    { name = "decorator", marker = "python_full_version >= '3.11'" },
++    { name = "ipython-pygments-lexers", marker = "python_full_version >= '3.11'" },
++    { name = "jedi", marker = "python_full_version >= '3.11'" },
++    { name = "matplotlib-inline", marker = "python_full_version >= '3.11'" },
++    { name = "pexpect", marker = "python_full_version >= '3.11' and sys_platform != 'emscripten' and sys_platform != 'win32'" },
++    { name = "prompt-toolkit", marker = "python_full_version >= '3.11'" },
++    { name = "pygments", marker = "python_full_version >= '3.11'" },
++    { name = "stack-data", marker = "python_full_version >= '3.11'" },
++    { name = "traitlets", marker = "python_full_version >= '3.11'" },
++    { name = "typing-extensions", marker = "python_full_version == '3.11.*'" },
++]
++sdist = { url = "https://files.pythonhosted.org/packages/54/80/406f9e3bde1c1fd9bf5a0be9d090f8ae623e401b7670d8f6fdf2ab679891/ipython-9.4.0.tar.gz", hash = "sha256:c033c6d4e7914c3d9768aabe76bbe87ba1dc66a92a05db6bfa1125d81f2ee270", size = 4385338, upload-time = "2025-07-01T11:11:30.606Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/63/f8/0031ee2b906a15a33d6bfc12dd09c3dfa966b3cb5b284ecfb7549e6ac3c4/ipython-9.4.0-py3-none-any.whl", hash = "sha256:25850f025a446d9b359e8d296ba175a36aedd32e83ca9b5060430fe16801f066", size = 611021, upload-time = "2025-07-01T11:11:27.85Z" },
++]
++
++[[package]]
++name = "ipython-pygments-lexers"
++version = "1.1.1"
++source = { registry = "https://pypi.org/simple" }
++dependencies = [
++    { name = "pygments", marker = "python_full_version >= '3.11'" },
++]
++sdist = { url = "https://files.pythonhosted.org/packages/ef/4c/5dd1d8af08107f88c7f741ead7a40854b8ac24ddf9ae850afbcf698aa552/ipython_pygments_lexers-1.1.1.tar.gz", hash = "sha256:09c0138009e56b6854f9535736f4171d855c8c08a563a0dcd8022f78355c7e81", size = 8393, upload-time = "2025-01-17T11:24:34.505Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/d9/33/1f075bf72b0b747cb3288d011319aaf64083cf2efef8354174e3ed4540e2/ipython_pygments_lexers-1.1.1-py3-none-any.whl", hash = "sha256:a9462224a505ade19a605f71f8fa63c2048833ce50abc86768a0d81d876dc81c", size = 8074, upload-time = "2025-01-17T11:24:33.271Z" },
++]
++
++[[package]]
++name = "jedi"
++version = "0.19.2"
++source = { registry = "https://pypi.org/simple" }
++dependencies = [
++    { name = "parso" },
++]
++sdist = { url = "https://files.pythonhosted.org/packages/72/3a/79a912fbd4d8dd6fbb02bf69afd3bb72cf0c729bb3063c6f4498603db17a/jedi-0.19.2.tar.gz", hash = "sha256:4770dc3de41bde3966b02eb84fbcf557fb33cce26ad23da12c742fb50ecb11f0", size = 1231287, upload-time = "2024-11-11T01:41:42.873Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/c0/5a/9cac0c82afec3d09ccd97c8b6502d48f165f9124db81b4bcb90b4af974ee/jedi-0.19.2-py2.py3-none-any.whl", hash = "sha256:a8ef22bde8490f57fe5c7681a3c83cb58874daf72b4784de3cce5b6ef6edb5b9", size = 1572278, upload-time = "2024-11-11T01:41:40.175Z" },
++]
++
++[[package]]
++name = "jedi-language-server"
++version = "0.41.3"
++source = { registry = "https://pypi.org/simple" }
++dependencies = [
++    { name = "cattrs" },
++    { name = "docstring-to-markdown" },
++    { name = "jedi" },
++    { name = "lsprotocol" },
++    { name = "pygls" },
++]
++sdist = { url = "https://files.pythonhosted.org/packages/f3/34/4a35094c680040c8dd598b1ee9153a701289351c1dcbad1a0f2d196c524b/jedi_language_server-0.41.3.tar.gz", hash = "sha256:113ec22b95fadaceefbb704b5f365384bed296b82ede59026be375ecc97a9f8a", size = 29113, upload-time = "2024-02-26T04:28:05.521Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/b6/67/2cf4419a8c418b0e5cba0b43dc1ea33a0bb42907694d6a786a3644889f32/jedi_language_server-0.41.3-py3-none-any.whl", hash = "sha256:7411f7479cdc9e9ea495f91e20b182a5d00170c0a8a4a87d3a147462282c06af", size = 27615, upload-time = "2024-02-26T04:28:02.084Z" },
++]
++
++[[package]]
++name = "jinja2"
++version = "3.1.6"
++source = { registry = "https://pypi.org/simple" }
++dependencies = [
++    { name = "markupsafe" },
++]
++sdist = { url = "https://files.pythonhosted.org/packages/df/bf/f7da0350254c0ed7c72f3e33cef02e048281fec7ecec5f032d4aac52226b/jinja2-3.1.6.tar.gz", hash = "sha256:0137fb05990d35f1275a587e9aee6d56da821fc83491a0fb838183be43f66d6d", size = 245115, upload-time = "2025-03-05T20:05:02.478Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/62/a1/3d680cbfd5f4b8f15abc1d571870c5fc3e594bb582bc3b64ea099db13e56/jinja2-3.1.6-py3-none-any.whl", hash = "sha256:85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67", size = 134899, upload-time = "2025-03-05T20:05:00.369Z" },
++]
++
+ [[package]]
+ name = "jiter"
+ version = "0.10.0"
+@@ -540,6 +862,102 @@ wheels = [
+     { url = "https://files.pythonhosted.org/packages/9b/52/7ec47455e26f2d6e5f2ea4951a0652c06e5b995c291f723973ae9e724a65/jiter-0.10.0-cp312-cp312-win_amd64.whl", hash = "sha256:a7c7d785ae9dda68c2678532a5a1581347e9c15362ae9f6e68f3fdbfb64f2e49", size = 206176, upload-time = "2025-05-18T19:04:00.305Z" },
+ ]
+ 
++[[package]]
++name = "jmespath"
++version = "1.0.1"
++source = { registry = "https://pypi.org/simple" }
++sdist = { url = "https://files.pythonhosted.org/packages/00/2a/e867e8531cf3e36b41201936b7fa7ba7b5702dbef42922193f05c8976cd6/jmespath-1.0.1.tar.gz", hash = "sha256:90261b206d6defd58fdd5e85f478bf633a2901798906be2ad389150c5c60edbe", size = 25843, upload-time = "2022-06-17T18:00:12.224Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/31/b4/b9b800c45527aadd64d5b442f9b932b00648617eb5d63d2c7a6587b7cafc/jmespath-1.0.1-py3-none-any.whl", hash = "sha256:02e2e4cc71b5bcab88332eebf907519190dd9e6e82107fa7f83b1003a6252980", size = 20256, upload-time = "2022-06-17T18:00:10.251Z" },
++]
++
++[[package]]
++name = "jsonpickle"
++version = "4.1.1"
++source = { registry = "https://pypi.org/simple" }
++sdist = { url = "https://files.pythonhosted.org/packages/e4/a6/d07afcfdef402900229bcca795f80506b207af13a838d4d99ad45abf530c/jsonpickle-4.1.1.tar.gz", hash = "sha256:f86e18f13e2b96c1c1eede0b7b90095bbb61d99fedc14813c44dc2f361dbbae1", size = 316885, upload-time = "2025-06-02T20:36:11.57Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/c1/73/04df8a6fa66d43a9fd45c30f283cc4afff17da671886e451d52af60bdc7e/jsonpickle-4.1.1-py3-none-any.whl", hash = "sha256:bb141da6057898aa2438ff268362b126826c812a1721e31cf08a6e142910dc91", size = 47125, upload-time = "2025-06-02T20:36:08.647Z" },
++]
++
++[[package]]
++name = "kombu"
++version = "5.5.4"
++source = { registry = "https://pypi.org/simple" }
++dependencies = [
++    { name = "amqp" },
++    { name = "packaging" },
++    { name = "tzdata" },
++    { name = "vine" },
++]
++sdist = { url = "https://files.pythonhosted.org/packages/0f/d3/5ff936d8319ac86b9c409f1501b07c426e6ad41966fedace9ef1b966e23f/kombu-5.5.4.tar.gz", hash = "sha256:886600168275ebeada93b888e831352fe578168342f0d1d5833d88ba0d847363", size = 461992, upload-time = "2025-06-01T10:19:22.281Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/ef/70/a07dcf4f62598c8ad579df241af55ced65bed76e42e45d3c368a6d82dbc1/kombu-5.5.4-py3-none-any.whl", hash = "sha256:a12ed0557c238897d8e518f1d1fdf84bd1516c5e305af2dacd85c2015115feb8", size = 210034, upload-time = "2025-06-01T10:19:20.436Z" },
++]
++
++[[package]]
++name = "lsprotocol"
++version = "2023.0.1"
++source = { registry = "https://pypi.org/simple" }
++dependencies = [
++    { name = "attrs" },
++    { name = "cattrs" },
++]
++sdist = { url = "https://files.pythonhosted.org/packages/9d/f6/6e80484ec078d0b50699ceb1833597b792a6c695f90c645fbaf54b947e6f/lsprotocol-2023.0.1.tar.gz", hash = "sha256:cc5c15130d2403c18b734304339e51242d3018a05c4f7d0f198ad6e0cd21861d", size = 69434, upload-time = "2024-01-09T17:21:12.625Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/8d/37/2351e48cb3309673492d3a8c59d407b75fb6630e560eb27ecd4da03adc9a/lsprotocol-2023.0.1-py3-none-any.whl", hash = "sha256:c75223c9e4af2f24272b14c6375787438279369236cd568f596d4951052a60f2", size = 70826, upload-time = "2024-01-09T17:21:14.491Z" },
++]
++
++[[package]]
++name = "markupsafe"
++version = "3.0.2"
++source = { registry = "https://pypi.org/simple" }
++sdist = { url = "https://files.pythonhosted.org/packages/b2/97/5d42485e71dfc078108a86d6de8fa46db44a1a9295e89c5d6d4a06e23a62/markupsafe-3.0.2.tar.gz", hash = "sha256:ee55d3edf80167e48ea11a923c7386f4669df67d7994554387f84e7d8b0a2bf0", size = 20537, upload-time = "2024-10-18T15:21:54.129Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/04/90/d08277ce111dd22f77149fd1a5d4653eeb3b3eaacbdfcbae5afb2600eebd/MarkupSafe-3.0.2-cp310-cp310-macosx_10_9_universal2.whl", hash = "sha256:7e94c425039cde14257288fd61dcfb01963e658efbc0ff54f5306b06054700f8", size = 14357, upload-time = "2024-10-18T15:20:51.44Z" },
++    { url = "https://files.pythonhosted.org/packages/04/e1/6e2194baeae0bca1fae6629dc0cbbb968d4d941469cbab11a3872edff374/MarkupSafe-3.0.2-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:9e2d922824181480953426608b81967de705c3cef4d1af983af849d7bd619158", size = 12393, upload-time = "2024-10-18T15:20:52.426Z" },
++    { url = "https://files.pythonhosted.org/packages/1d/69/35fa85a8ece0a437493dc61ce0bb6d459dcba482c34197e3efc829aa357f/MarkupSafe-3.0.2-cp310-cp310-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:38a9ef736c01fccdd6600705b09dc574584b89bea478200c5fbf112a6b0d5579", size = 21732, upload-time = "2024-10-18T15:20:53.578Z" },
++    { url = "https://files.pythonhosted.org/packages/22/35/137da042dfb4720b638d2937c38a9c2df83fe32d20e8c8f3185dbfef05f7/MarkupSafe-3.0.2-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:bbcb445fa71794da8f178f0f6d66789a28d7319071af7a496d4d507ed566270d", size = 20866, upload-time = "2024-10-18T15:20:55.06Z" },
++    { url = "https://files.pythonhosted.org/packages/29/28/6d029a903727a1b62edb51863232152fd335d602def598dade38996887f0/MarkupSafe-3.0.2-cp310-cp310-manylinux_2_5_i686.manylinux1_i686.manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:57cb5a3cf367aeb1d316576250f65edec5bb3be939e9247ae594b4bcbc317dfb", size = 20964, upload-time = "2024-10-18T15:20:55.906Z" },
++    { url = "https://files.pythonhosted.org/packages/cc/cd/07438f95f83e8bc028279909d9c9bd39e24149b0d60053a97b2bc4f8aa51/MarkupSafe-3.0.2-cp310-cp310-musllinux_1_2_aarch64.whl", hash = "sha256:3809ede931876f5b2ec92eef964286840ed3540dadf803dd570c3b7e13141a3b", size = 21977, upload-time = "2024-10-18T15:20:57.189Z" },
++    { url = "https://files.pythonhosted.org/packages/29/01/84b57395b4cc062f9c4c55ce0df7d3108ca32397299d9df00fedd9117d3d/MarkupSafe-3.0.2-cp310-cp310-musllinux_1_2_i686.whl", hash = "sha256:e07c3764494e3776c602c1e78e298937c3315ccc9043ead7e685b7f2b8d47b3c", size = 21366, upload-time = "2024-10-18T15:20:58.235Z" },
++    { url = "https://files.pythonhosted.org/packages/bd/6e/61ebf08d8940553afff20d1fb1ba7294b6f8d279df9fd0c0db911b4bbcfd/MarkupSafe-3.0.2-cp310-cp310-musllinux_1_2_x86_64.whl", hash = "sha256:b424c77b206d63d500bcb69fa55ed8d0e6a3774056bdc4839fc9298a7edca171", size = 21091, upload-time = "2024-10-18T15:20:59.235Z" },
++    { url = "https://files.pythonhosted.org/packages/11/23/ffbf53694e8c94ebd1e7e491de185124277964344733c45481f32ede2499/MarkupSafe-3.0.2-cp310-cp310-win32.whl", hash = "sha256:fcabf5ff6eea076f859677f5f0b6b5c1a51e70a376b0579e0eadef8db48c6b50", size = 15065, upload-time = "2024-10-18T15:21:00.307Z" },
++    { url = "https://files.pythonhosted.org/packages/44/06/e7175d06dd6e9172d4a69a72592cb3f7a996a9c396eee29082826449bbc3/MarkupSafe-3.0.2-cp310-cp310-win_amd64.whl", hash = "sha256:6af100e168aa82a50e186c82875a5893c5597a0c1ccdb0d8b40240b1f28b969a", size = 15514, upload-time = "2024-10-18T15:21:01.122Z" },
++    { url = "https://files.pythonhosted.org/packages/6b/28/bbf83e3f76936960b850435576dd5e67034e200469571be53f69174a2dfd/MarkupSafe-3.0.2-cp311-cp311-macosx_10_9_universal2.whl", hash = "sha256:9025b4018f3a1314059769c7bf15441064b2207cb3f065e6ea1e7359cb46db9d", size = 14353, upload-time = "2024-10-18T15:21:02.187Z" },
++    { url = "https://files.pythonhosted.org/packages/6c/30/316d194b093cde57d448a4c3209f22e3046c5bb2fb0820b118292b334be7/MarkupSafe-3.0.2-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:93335ca3812df2f366e80509ae119189886b0f3c2b81325d39efdb84a1e2ae93", size = 12392, upload-time = "2024-10-18T15:21:02.941Z" },
++    { url = "https://files.pythonhosted.org/packages/f2/96/9cdafba8445d3a53cae530aaf83c38ec64c4d5427d975c974084af5bc5d2/MarkupSafe-3.0.2-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:2cb8438c3cbb25e220c2ab33bb226559e7afb3baec11c4f218ffa7308603c832", size = 23984, upload-time = "2024-10-18T15:21:03.953Z" },
++    { url = "https://files.pythonhosted.org/packages/f1/a4/aefb044a2cd8d7334c8a47d3fb2c9f328ac48cb349468cc31c20b539305f/MarkupSafe-3.0.2-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:a123e330ef0853c6e822384873bef7507557d8e4a082961e1defa947aa59ba84", size = 23120, upload-time = "2024-10-18T15:21:06.495Z" },
++    { url = "https://files.pythonhosted.org/packages/8d/21/5e4851379f88f3fad1de30361db501300d4f07bcad047d3cb0449fc51f8c/MarkupSafe-3.0.2-cp311-cp311-manylinux_2_5_i686.manylinux1_i686.manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:1e084f686b92e5b83186b07e8a17fc09e38fff551f3602b249881fec658d3eca", size = 23032, upload-time = "2024-10-18T15:21:07.295Z" },
++    { url = "https://files.pythonhosted.org/packages/00/7b/e92c64e079b2d0d7ddf69899c98842f3f9a60a1ae72657c89ce2655c999d/MarkupSafe-3.0.2-cp311-cp311-musllinux_1_2_aarch64.whl", hash = "sha256:d8213e09c917a951de9d09ecee036d5c7d36cb6cb7dbaece4c71a60d79fb9798", size = 24057, upload-time = "2024-10-18T15:21:08.073Z" },
++    { url = "https://files.pythonhosted.org/packages/f9/ac/46f960ca323037caa0a10662ef97d0a4728e890334fc156b9f9e52bcc4ca/MarkupSafe-3.0.2-cp311-cp311-musllinux_1_2_i686.whl", hash = "sha256:5b02fb34468b6aaa40dfc198d813a641e3a63b98c2b05a16b9f80b7ec314185e", size = 23359, upload-time = "2024-10-18T15:21:09.318Z" },
++    { url = "https://files.pythonhosted.org/packages/69/84/83439e16197337b8b14b6a5b9c2105fff81d42c2a7c5b58ac7b62ee2c3b1/MarkupSafe-3.0.2-cp311-cp311-musllinux_1_2_x86_64.whl", hash = "sha256:0bff5e0ae4ef2e1ae4fdf2dfd5b76c75e5c2fa4132d05fc1b0dabcd20c7e28c4", size = 23306, upload-time = "2024-10-18T15:21:10.185Z" },
++    { url = "https://files.pythonhosted.org/packages/9a/34/a15aa69f01e2181ed8d2b685c0d2f6655d5cca2c4db0ddea775e631918cd/MarkupSafe-3.0.2-cp311-cp311-win32.whl", hash = "sha256:6c89876f41da747c8d3677a2b540fb32ef5715f97b66eeb0c6b66f5e3ef6f59d", size = 15094, upload-time = "2024-10-18T15:21:11.005Z" },
++    { url = "https://files.pythonhosted.org/packages/da/b8/3a3bd761922d416f3dc5d00bfbed11f66b1ab89a0c2b6e887240a30b0f6b/MarkupSafe-3.0.2-cp311-cp311-win_amd64.whl", hash = "sha256:70a87b411535ccad5ef2f1df5136506a10775d267e197e4cf531ced10537bd6b", size = 15521, upload-time = "2024-10-18T15:21:12.911Z" },
++    { url = "https://files.pythonhosted.org/packages/22/09/d1f21434c97fc42f09d290cbb6350d44eb12f09cc62c9476effdb33a18aa/MarkupSafe-3.0.2-cp312-cp312-macosx_10_13_universal2.whl", hash = "sha256:9778bd8ab0a994ebf6f84c2b949e65736d5575320a17ae8984a77fab08db94cf", size = 14274, upload-time = "2024-10-18T15:21:13.777Z" },
++    { url = "https://files.pythonhosted.org/packages/6b/b0/18f76bba336fa5aecf79d45dcd6c806c280ec44538b3c13671d49099fdd0/MarkupSafe-3.0.2-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:846ade7b71e3536c4e56b386c2a47adf5741d2d8b94ec9dc3e92e5e1ee1e2225", size = 12348, upload-time = "2024-10-18T15:21:14.822Z" },
++    { url = "https://files.pythonhosted.org/packages/e0/25/dd5c0f6ac1311e9b40f4af06c78efde0f3b5cbf02502f8ef9501294c425b/MarkupSafe-3.0.2-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:1c99d261bd2d5f6b59325c92c73df481e05e57f19837bdca8413b9eac4bd8028", size = 24149, upload-time = "2024-10-18T15:21:15.642Z" },
++    { url = "https://files.pythonhosted.org/packages/f3/f0/89e7aadfb3749d0f52234a0c8c7867877876e0a20b60e2188e9850794c17/MarkupSafe-3.0.2-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:e17c96c14e19278594aa4841ec148115f9c7615a47382ecb6b82bd8fea3ab0c8", size = 23118, upload-time = "2024-10-18T15:21:17.133Z" },
++    { url = "https://files.pythonhosted.org/packages/d5/da/f2eeb64c723f5e3777bc081da884b414671982008c47dcc1873d81f625b6/MarkupSafe-3.0.2-cp312-cp312-manylinux_2_5_i686.manylinux1_i686.manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:88416bd1e65dcea10bc7569faacb2c20ce071dd1f87539ca2ab364bf6231393c", size = 22993, upload-time = "2024-10-18T15:21:18.064Z" },
++    { url = "https://files.pythonhosted.org/packages/da/0e/1f32af846df486dce7c227fe0f2398dc7e2e51d4a370508281f3c1c5cddc/MarkupSafe-3.0.2-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:2181e67807fc2fa785d0592dc2d6206c019b9502410671cc905d132a92866557", size = 24178, upload-time = "2024-10-18T15:21:18.859Z" },
++    { url = "https://files.pythonhosted.org/packages/c4/f6/bb3ca0532de8086cbff5f06d137064c8410d10779c4c127e0e47d17c0b71/MarkupSafe-3.0.2-cp312-cp312-musllinux_1_2_i686.whl", hash = "sha256:52305740fe773d09cffb16f8ed0427942901f00adedac82ec8b67752f58a1b22", size = 23319, upload-time = "2024-10-18T15:21:19.671Z" },
++    { url = "https://files.pythonhosted.org/packages/a2/82/8be4c96ffee03c5b4a034e60a31294daf481e12c7c43ab8e34a1453ee48b/MarkupSafe-3.0.2-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:ad10d3ded218f1039f11a75f8091880239651b52e9bb592ca27de44eed242a48", size = 23352, upload-time = "2024-10-18T15:21:20.971Z" },
++    { url = "https://files.pythonhosted.org/packages/51/ae/97827349d3fcffee7e184bdf7f41cd6b88d9919c80f0263ba7acd1bbcb18/MarkupSafe-3.0.2-cp312-cp312-win32.whl", hash = "sha256:0f4ca02bea9a23221c0182836703cbf8930c5e9454bacce27e767509fa286a30", size = 15097, upload-time = "2024-10-18T15:21:22.646Z" },
++    { url = "https://files.pythonhosted.org/packages/c1/80/a61f99dc3a936413c3ee4e1eecac96c0da5ed07ad56fd975f1a9da5bc630/MarkupSafe-3.0.2-cp312-cp312-win_amd64.whl", hash = "sha256:8e06879fc22a25ca47312fbe7c8264eb0b662f6db27cb2d3bbbc74b1df4b9b87", size = 15601, upload-time = "2024-10-18T15:21:23.499Z" },
++]
++
++[[package]]
++name = "matplotlib-inline"
++version = "0.1.7"
++source = { registry = "https://pypi.org/simple" }
++dependencies = [
++    { name = "traitlets" },
++]
++sdist = { url = "https://files.pythonhosted.org/packages/99/5b/a36a337438a14116b16480db471ad061c36c3694df7c2084a0da7ba538b7/matplotlib_inline-0.1.7.tar.gz", hash = "sha256:8423b23ec666be3d16e16b60bdd8ac4e86e840ebd1dd11a30b9f117f2fa0ab90", size = 8159, upload-time = "2024-04-15T13:44:44.803Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/8f/8e/9ad090d3553c280a8060fbf6e24dc1c0c29704ee7d1c372f0c174aa59285/matplotlib_inline-0.1.7-py3-none-any.whl", hash = "sha256:df192d39a4ff8f21b1895d72e6a13f5fcc5099f00fa84384e0ea28c2cc0653ca", size = 9899, upload-time = "2024-04-15T13:44:43.265Z" },
++]
++
+ [[package]]
+ name = "mccabe"
+ version = "0.7.0"
+@@ -615,6 +1033,21 @@ wheels = [
+     { url = "https://files.pythonhosted.org/packages/d8/30/9aec301e9772b098c1f5c0ca0279237c9766d94b97802e9888010c64b0ed/multidict-6.6.3-py3-none-any.whl", hash = "sha256:8db10f29c7541fc5da4defd8cd697e1ca429db743fa716325f236079b96f775a", size = 12313, upload-time = "2025-06-30T15:53:45.437Z" },
+ ]
+ 
++[[package]]
++name = "multilspy"
++version = "0.0.15"
++source = { registry = "https://pypi.org/simple" }
++dependencies = [
++    { name = "jedi-language-server" },
++    { name = "psutil" },
++    { name = "requests" },
++    { name = "typing-extensions" },
++]
++sdist = { url = "https://files.pythonhosted.org/packages/d8/a8/4d6ab48e624f911eb5229aa01b3524b916470c9d036a9e8cc96d6fb81673/multilspy-0.0.15.tar.gz", hash = "sha256:b27a0b7c5c5306216b31fe1df9b4a42d2797735d0a78928e0df9ef8dfbcc97c5", size = 120639, upload-time = "2025-04-03T07:01:27.216Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/97/4d/b9d3492d6a7a2536498fc7fd49c1cc7bc86a41acf93b0ad967d75dbe5cd6/multilspy-0.0.15-py3-none-any.whl", hash = "sha256:3fa88939b953ed5d39aba4688a34105ec1e5cf2b2f778167fee2b78b3c0e1427", size = 137361, upload-time = "2025-04-03T07:01:25.492Z" },
++]
++
+ [[package]]
+ name = "mypy"
+ version = "1.16.1"
+@@ -657,6 +1090,18 @@ wheels = [
+     { url = "https://files.pythonhosted.org/packages/79/7b/2c79738432f5c924bef5071f933bcc9efd0473bac3b4aa584a6f7c1c8df8/mypy_extensions-1.1.0-py3-none-any.whl", hash = "sha256:1be4cccdb0f2482337c4743e60421de3a356cd97508abadd57d47403e94f5505", size = 4963, upload-time = "2025-04-22T14:54:22.983Z" },
+ ]
+ 
++[[package]]
++name = "neo4j"
++version = "5.28.1"
++source = { registry = "https://pypi.org/simple" }
++dependencies = [
++    { name = "pytz" },
++]
++sdist = { url = "https://files.pythonhosted.org/packages/4b/20/733dac16f7cedc80b23093415822c9763302519cba0e7c8bcdb5c01fc512/neo4j-5.28.1.tar.gz", hash = "sha256:ae8e37a1d895099062c75bc359b2cce62099baac7be768d0eba7180c1298e214", size = 231094, upload-time = "2025-02-10T08:36:22.566Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/6a/57/94225fe5e9dabdc0ff60c88cbfcedf11277f4b34e7ab1373d3e62dbdd207/neo4j-5.28.1-py3-none-any.whl", hash = "sha256:6755ef9e5f4e14b403aef1138fb6315b120631a0075c138b5ddb2a06b87b09fd", size = 312258, upload-time = "2025-02-10T08:36:16.209Z" },
++]
++
+ [[package]]
+ name = "networkx"
+ version = "3.4.2"
+@@ -926,6 +1371,15 @@ wheels = [
+     { url = "https://files.pythonhosted.org/packages/20/12/38679034af332785aac8774540895e234f4d07f7545804097de4b666afd8/packaging-25.0-py3-none-any.whl", hash = "sha256:29572ef2b1f17581046b3a2227d5c611fb25ec70ca1ba8554b24b0e69331a484", size = 66469, upload-time = "2025-04-19T11:48:57.875Z" },
+ ]
+ 
++[[package]]
++name = "parso"
++version = "0.8.4"
++source = { registry = "https://pypi.org/simple" }
++sdist = { url = "https://files.pythonhosted.org/packages/66/94/68e2e17afaa9169cf6412ab0f28623903be73d1b32e208d9e8e541bb086d/parso-0.8.4.tar.gz", hash = "sha256:eb3a7b58240fb99099a345571deecc0f9540ea5f4dd2fe14c2a99d6b281ab92d", size = 400609, upload-time = "2024-04-05T09:43:55.897Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/c6/ac/dac4a63f978e4dcb3c6d3a78c4d8e0192a113d288502a1216950c41b1027/parso-0.8.4-py2.py3-none-any.whl", hash = "sha256:a418670a20291dacd2dddc80c377c5c3791378ee1e8d12bffc35420643d43f18", size = 103650, upload-time = "2024-04-05T09:43:53.299Z" },
++]
++
+ [[package]]
+ name = "pathspec"
+ version = "0.12.1"
+@@ -935,6 +1389,18 @@ wheels = [
+     { url = "https://files.pythonhosted.org/packages/cc/20/ff623b09d963f88bfde16306a54e12ee5ea43e9b597108672ff3a408aad6/pathspec-0.12.1-py3-none-any.whl", hash = "sha256:a0d503e138a4c123b27490a4f7beda6a01c6f288df0e4a8b79c7eb0dc7b4cc08", size = 31191, upload-time = "2023-12-10T22:30:43.14Z" },
+ ]
+ 
++[[package]]
++name = "pexpect"
++version = "4.9.0"
++source = { registry = "https://pypi.org/simple" }
++dependencies = [
++    { name = "ptyprocess" },
++]
++sdist = { url = "https://files.pythonhosted.org/packages/42/92/cc564bf6381ff43ce1f4d06852fc19a2f11d180f23dc32d9588bee2f149d/pexpect-4.9.0.tar.gz", hash = "sha256:ee7d41123f3c9911050ea2c2dac107568dc43b2d3b0c7557a33212c398ead30f", size = 166450, upload-time = "2023-11-25T09:07:26.339Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/9e/c3/059298687310d527a58bb01f3b1965787ee3b40dce76752eda8b44e9a2c5/pexpect-4.9.0-py2.py3-none-any.whl", hash = "sha256:7236d1e080e4936be2dc3e326cec0af72acf9212a7e1d060210e70a47e253523", size = 63772, upload-time = "2023-11-25T06:56:14.81Z" },
++]
++
+ [[package]]
+ name = "platformdirs"
+ version = "4.3.8"
+@@ -953,6 +1419,30 @@ wheels = [
+     { url = "https://files.pythonhosted.org/packages/54/20/4d324d65cc6d9205fabedc306948156824eb9f0ee1633355a8f7ec5c66bf/pluggy-1.6.0-py3-none-any.whl", hash = "sha256:e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746", size = 20538, upload-time = "2025-05-15T12:30:06.134Z" },
+ ]
+ 
++[[package]]
++name = "portalocker"
++version = "2.10.1"
++source = { registry = "https://pypi.org/simple" }
++dependencies = [
++    { name = "pywin32", marker = "sys_platform == 'win32'" },
++]
++sdist = { url = "https://files.pythonhosted.org/packages/ed/d3/c6c64067759e87af98cc668c1cc75171347d0f1577fab7ca3749134e3cd4/portalocker-2.10.1.tar.gz", hash = "sha256:ef1bf844e878ab08aee7e40184156e1151f228f103aa5c6bd0724cc330960f8f", size = 40891, upload-time = "2024-07-13T23:15:34.86Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/9b/fb/a70a4214956182e0d7a9099ab17d50bfcba1056188e9b14f35b9e2b62a0d/portalocker-2.10.1-py3-none-any.whl", hash = "sha256:53a5984ebc86a025552264b459b46a2086e269b21823cb572f8f28ee759e45bf", size = 18423, upload-time = "2024-07-13T23:15:32.602Z" },
++]
++
++[[package]]
++name = "prompt-toolkit"
++version = "3.0.51"
++source = { registry = "https://pypi.org/simple" }
++dependencies = [
++    { name = "wcwidth" },
++]
++sdist = { url = "https://files.pythonhosted.org/packages/bb/6e/9d084c929dfe9e3bfe0c6a47e31f78a25c54627d64a66e884a8bf5474f1c/prompt_toolkit-3.0.51.tar.gz", hash = "sha256:931a162e3b27fc90c86f1b48bb1fb2c528c2761475e57c9c06de13311c7b54ed", size = 428940, upload-time = "2025-04-15T09:18:47.731Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/ce/4f/5249960887b1fbe561d9ff265496d170b55a735b76724f10ef19f9e40716/prompt_toolkit-3.0.51-py3-none-any.whl", hash = "sha256:52742911fde84e2d423e2f9a4cf1de7d7ac4e51958f648d9540e0fb8db077b07", size = 387810, upload-time = "2025-04-15T09:18:44.753Z" },
++]
++
+ [[package]]
+ name = "propcache"
+ version = "0.3.2"
+@@ -1024,6 +1514,39 @@ wheels = [
+     { url = "https://files.pythonhosted.org/packages/7e/cc/7e77861000a0691aeea8f4566e5d3aa716f2b1dece4a24439437e41d3d25/protobuf-5.29.5-py3-none-any.whl", hash = "sha256:6cf42630262c59b2d8de33954443d94b746c952b01434fc58a417fdbd2e84bd5", size = 172823, upload-time = "2025-05-28T23:51:58.157Z" },
+ ]
+ 
++[[package]]
++name = "psutil"
++version = "7.0.0"
++source = { registry = "https://pypi.org/simple" }
++sdist = { url = "https://files.pythonhosted.org/packages/2a/80/336820c1ad9286a4ded7e845b2eccfcb27851ab8ac6abece774a6ff4d3de/psutil-7.0.0.tar.gz", hash = "sha256:7be9c3eba38beccb6495ea33afd982a44074b78f28c434a1f51cc07fd315c456", size = 497003, upload-time = "2025-02-13T21:54:07.946Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/ed/e6/2d26234410f8b8abdbf891c9da62bee396583f713fb9f3325a4760875d22/psutil-7.0.0-cp36-abi3-macosx_10_9_x86_64.whl", hash = "sha256:101d71dc322e3cffd7cea0650b09b3d08b8e7c4109dd6809fe452dfd00e58b25", size = 238051, upload-time = "2025-02-13T21:54:12.36Z" },
++    { url = "https://files.pythonhosted.org/packages/04/8b/30f930733afe425e3cbfc0e1468a30a18942350c1a8816acfade80c005c4/psutil-7.0.0-cp36-abi3-macosx_11_0_arm64.whl", hash = "sha256:39db632f6bb862eeccf56660871433e111b6ea58f2caea825571951d4b6aa3da", size = 239535, upload-time = "2025-02-13T21:54:16.07Z" },
++    { url = "https://files.pythonhosted.org/packages/2a/ed/d362e84620dd22876b55389248e522338ed1bf134a5edd3b8231d7207f6d/psutil-7.0.0-cp36-abi3-manylinux_2_12_i686.manylinux2010_i686.manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:1fcee592b4c6f146991ca55919ea3d1f8926497a713ed7faaf8225e174581e91", size = 275004, upload-time = "2025-02-13T21:54:18.662Z" },
++    { url = "https://files.pythonhosted.org/packages/bf/b9/b0eb3f3cbcb734d930fdf839431606844a825b23eaf9a6ab371edac8162c/psutil-7.0.0-cp36-abi3-manylinux_2_12_x86_64.manylinux2010_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:4b1388a4f6875d7e2aff5c4ca1cc16c545ed41dd8bb596cefea80111db353a34", size = 277986, upload-time = "2025-02-13T21:54:21.811Z" },
++    { url = "https://files.pythonhosted.org/packages/eb/a2/709e0fe2f093556c17fbafda93ac032257242cabcc7ff3369e2cb76a97aa/psutil-7.0.0-cp36-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:a5f098451abc2828f7dc6b58d44b532b22f2088f4999a937557b603ce72b1993", size = 279544, upload-time = "2025-02-13T21:54:24.68Z" },
++    { url = "https://files.pythonhosted.org/packages/50/e6/eecf58810b9d12e6427369784efe814a1eec0f492084ce8eb8f4d89d6d61/psutil-7.0.0-cp37-abi3-win32.whl", hash = "sha256:ba3fcef7523064a6c9da440fc4d6bd07da93ac726b5733c29027d7dc95b39d99", size = 241053, upload-time = "2025-02-13T21:54:34.31Z" },
++    { url = "https://files.pythonhosted.org/packages/50/1b/6921afe68c74868b4c9fa424dad3be35b095e16687989ebbb50ce4fceb7c/psutil-7.0.0-cp37-abi3-win_amd64.whl", hash = "sha256:4cf3d4eb1aa9b348dec30105c55cd9b7d4629285735a102beb4441e38db90553", size = 244885, upload-time = "2025-02-13T21:54:37.486Z" },
++]
++
++[[package]]
++name = "ptyprocess"
++version = "0.7.0"
++source = { registry = "https://pypi.org/simple" }
++sdist = { url = "https://files.pythonhosted.org/packages/20/e5/16ff212c1e452235a90aeb09066144d0c5a6a8c0834397e03f5224495c4e/ptyprocess-0.7.0.tar.gz", hash = "sha256:5c5d0a3b48ceee0b48485e0c26037c0acd7d29765ca3fbb5cb3831d347423220", size = 70762, upload-time = "2020-12-28T15:15:30.155Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/22/a6/858897256d0deac81a172289110f31629fc4cee19b6f01283303e18c8db3/ptyprocess-0.7.0-py2.py3-none-any.whl", hash = "sha256:4b41f3967fce3af57cc7e94b888626c18bf37a083e3651ca8feeb66d492fef35", size = 13993, upload-time = "2020-12-28T15:15:28.35Z" },
++]
++
++[[package]]
++name = "pure-eval"
++version = "0.2.3"
++source = { registry = "https://pypi.org/simple" }
++sdist = { url = "https://files.pythonhosted.org/packages/cd/05/0a34433a064256a578f1783a10da6df098ceaa4a57bbeaa96a6c0352786b/pure_eval-0.2.3.tar.gz", hash = "sha256:5f4e983f40564c576c7c8635ae88db5956bb2229d7e9237d03b3c0b0190eaf42", size = 19752, upload-time = "2024-07-21T12:58:21.801Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/8e/37/efad0257dc6e593a18957422533ff0f87ede7c9c6ea010a2177d738fb82f/pure_eval-0.2.3-py3-none-any.whl", hash = "sha256:1db8e35b67b3d218d818ae653e27f06c3aa420901fa7b081ca98cbedc874e0d0", size = 11842, upload-time = "2024-07-21T12:58:20.04Z" },
++]
++
+ [[package]]
+ name = "pycodestyle"
+ version = "2.14.0"
+@@ -1127,6 +1650,19 @@ wheels = [
+     { url = "https://files.pythonhosted.org/packages/c2/2f/81d580a0fb83baeb066698975cb14a618bdbed7720678566f1b046a95fe8/pyflakes-3.4.0-py2.py3-none-any.whl", hash = "sha256:f742a7dbd0d9cb9ea41e9a24a918996e8170c799fa528688d40dd582c8265f4f", size = 63551, upload-time = "2025-06-20T18:45:26.937Z" },
+ ]
+ 
++[[package]]
++name = "pygls"
++version = "1.3.1"
++source = { registry = "https://pypi.org/simple" }
++dependencies = [
++    { name = "cattrs" },
++    { name = "lsprotocol" },
++]
++sdist = { url = "https://files.pythonhosted.org/packages/86/b9/41d173dad9eaa9db9c785a85671fc3d68961f08d67706dc2e79011e10b5c/pygls-1.3.1.tar.gz", hash = "sha256:140edceefa0da0e9b3c533547c892a42a7d2fd9217ae848c330c53d266a55018", size = 45527, upload-time = "2024-03-26T18:44:25.679Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/11/19/b74a10dd24548e96e8c80226cbacb28b021bc3a168a7d2709fb0d0185348/pygls-1.3.1-py3-none-any.whl", hash = "sha256:6e00f11efc56321bdeb6eac04f6d86131f654c7d49124344a9ebb968da3dd91e", size = 56031, upload-time = "2024-03-26T18:44:24.249Z" },
++]
++
+ [[package]]
+ name = "pygments"
+ version = "2.19.2"
+@@ -1166,6 +1702,18 @@ wheels = [
+     { url = "https://files.pythonhosted.org/packages/30/05/ce271016e351fddc8399e546f6e23761967ee09c8c568bbfbecb0c150171/pytest_asyncio-1.0.0-py3-none-any.whl", hash = "sha256:4f024da9f1ef945e680dc68610b52550e36590a67fd31bb3b4943979a1f90ef3", size = 15976, upload-time = "2025-05-26T04:54:39.035Z" },
+ ]
+ 
++[[package]]
++name = "python-dateutil"
++version = "2.9.0.post0"
++source = { registry = "https://pypi.org/simple" }
++dependencies = [
++    { name = "six" },
++]
++sdist = { url = "https://files.pythonhosted.org/packages/66/c0/0c8b6ad9f17a802ee498c46e004a0eb49bc148f2fd230864601a86dcf6db/python-dateutil-2.9.0.post0.tar.gz", hash = "sha256:37dd54208da7e1cd875388217d5e00ebd4179249f90fb72437e91a35459a0ad3", size = 342432, upload-time = "2024-03-01T18:36:20.211Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/ec/57/56b9bcc3c9c6a792fcbaf139543cee77261f3651ca9da0c93f5c1221264b/python_dateutil-2.9.0.post0-py2.py3-none-any.whl", hash = "sha256:a8b2bc7bffae282281c8140a97d3aa9c14da0b136dfe83f850eea9a5f7470427", size = 229892, upload-time = "2024-03-01T18:36:18.57Z" },
++]
++
+ [[package]]
+ name = "python-dotenv"
+ version = "1.1.1"
+@@ -1186,9 +1734,80 @@ dependencies = [
+ ]
+ sdist = { url = "https://files.pythonhosted.org/packages/7c/0d/8787b021d52eb8764c0bb18ab95f720cf554902044c6a5cb1865daf45763/python-louvain-0.16.tar.gz", hash = "sha256:b7ba2df5002fd28d3ee789a49532baad11fe648e4f2117cf0798e7520a1da56b", size = 204641, upload-time = "2022-01-29T15:53:03.532Z" }
+ 
++[[package]]
++name = "pytz"
++version = "2025.2"
++source = { registry = "https://pypi.org/simple" }
++sdist = { url = "https://files.pythonhosted.org/packages/f8/bf/abbd3cdfb8fbc7fb3d4d38d320f2441b1e7cbe29be4f23797b4a2b5d8aac/pytz-2025.2.tar.gz", hash = "sha256:360b9e3dbb49a209c21ad61809c7fb453643e048b38924c765813546746e81c3", size = 320884, upload-time = "2025-03-25T02:25:00.538Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/81/c4/34e93fe5f5429d7570ec1fa436f1986fb1f00c3e0f43a589fe2bbcd22c3f/pytz-2025.2-py2.py3-none-any.whl", hash = "sha256:5ddf76296dd8c44c26eb8f4b6f35488f3ccbf6fbbd7adee0b7262d43f0ec2f00", size = 509225, upload-time = "2025-03-25T02:24:58.468Z" },
++]
++
++[[package]]
++name = "pyvis"
++version = "0.3.2"
++source = { registry = "https://pypi.org/simple" }
++dependencies = [
++    { name = "ipython", version = "8.37.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
++    { name = "ipython", version = "9.4.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
++    { name = "jinja2" },
++    { name = "jsonpickle" },
++    { name = "networkx", version = "3.4.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
++    { name = "networkx", version = "3.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
++]
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/ab/4b/e37e4e5d5ee1179694917b445768bdbfb084f5a59ecd38089d3413d4c70f/pyvis-0.3.2-py3-none-any.whl", hash = "sha256:5720c4ca8161dc5d9ab352015723abb7a8bb8fb443edeb07f7a322db34a97555", size = 756038, upload-time = "2023-02-24T20:29:46.758Z" },
++]
++
++[[package]]
++name = "pywin32"
++version = "310"
++source = { registry = "https://pypi.org/simple" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/95/da/a5f38fffbba2fb99aa4aa905480ac4b8e83ca486659ac8c95bce47fb5276/pywin32-310-cp310-cp310-win32.whl", hash = "sha256:6dd97011efc8bf51d6793a82292419eba2c71cf8e7250cfac03bba284454abc1", size = 8848240, upload-time = "2025-03-17T00:55:46.783Z" },
++    { url = "https://files.pythonhosted.org/packages/aa/fe/d873a773324fa565619ba555a82c9dabd677301720f3660a731a5d07e49a/pywin32-310-cp310-cp310-win_amd64.whl", hash = "sha256:c3e78706e4229b915a0821941a84e7ef420bf2b77e08c9dae3c76fd03fd2ae3d", size = 9601854, upload-time = "2025-03-17T00:55:48.783Z" },
++    { url = "https://files.pythonhosted.org/packages/3c/84/1a8e3d7a15490d28a5d816efa229ecb4999cdc51a7c30dd8914f669093b8/pywin32-310-cp310-cp310-win_arm64.whl", hash = "sha256:33babed0cf0c92a6f94cc6cc13546ab24ee13e3e800e61ed87609ab91e4c8213", size = 8522963, upload-time = "2025-03-17T00:55:50.969Z" },
++    { url = "https://files.pythonhosted.org/packages/f7/b1/68aa2986129fb1011dabbe95f0136f44509afaf072b12b8f815905a39f33/pywin32-310-cp311-cp311-win32.whl", hash = "sha256:1e765f9564e83011a63321bb9d27ec456a0ed90d3732c4b2e312b855365ed8bd", size = 8784284, upload-time = "2025-03-17T00:55:53.124Z" },
++    { url = "https://files.pythonhosted.org/packages/b3/bd/d1592635992dd8db5bb8ace0551bc3a769de1ac8850200cfa517e72739fb/pywin32-310-cp311-cp311-win_amd64.whl", hash = "sha256:126298077a9d7c95c53823934f000599f66ec9296b09167810eb24875f32689c", size = 9520748, upload-time = "2025-03-17T00:55:55.203Z" },
++    { url = "https://files.pythonhosted.org/packages/90/b1/ac8b1ffce6603849eb45a91cf126c0fa5431f186c2e768bf56889c46f51c/pywin32-310-cp311-cp311-win_arm64.whl", hash = "sha256:19ec5fc9b1d51c4350be7bb00760ffce46e6c95eaf2f0b2f1150657b1a43c582", size = 8455941, upload-time = "2025-03-17T00:55:57.048Z" },
++    { url = "https://files.pythonhosted.org/packages/6b/ec/4fdbe47932f671d6e348474ea35ed94227fb5df56a7c30cbbb42cd396ed0/pywin32-310-cp312-cp312-win32.whl", hash = "sha256:8a75a5cc3893e83a108c05d82198880704c44bbaee4d06e442e471d3c9ea4f3d", size = 8796239, upload-time = "2025-03-17T00:55:58.807Z" },
++    { url = "https://files.pythonhosted.org/packages/e3/e5/b0627f8bb84e06991bea89ad8153a9e50ace40b2e1195d68e9dff6b03d0f/pywin32-310-cp312-cp312-win_amd64.whl", hash = "sha256:bf5c397c9a9a19a6f62f3fb821fbf36cac08f03770056711f765ec1503972060", size = 9503839, upload-time = "2025-03-17T00:56:00.8Z" },
++    { url = "https://files.pythonhosted.org/packages/1f/32/9ccf53748df72301a89713936645a664ec001abd35ecc8578beda593d37d/pywin32-310-cp312-cp312-win_arm64.whl", hash = "sha256:2349cc906eae872d0663d4d6290d13b90621eaf78964bb1578632ff20e152966", size = 8459470, upload-time = "2025-03-17T00:56:02.601Z" },
++]
++
++[[package]]
++name = "qdrant-client"
++version = "1.14.3"
++source = { registry = "https://pypi.org/simple" }
++dependencies = [
++    { name = "grpcio" },
++    { name = "httpx", extra = ["http2"] },
++    { name = "numpy" },
++    { name = "portalocker" },
++    { name = "protobuf" },
++    { name = "pydantic" },
++    { name = "urllib3" },
++]
++sdist = { url = "https://files.pythonhosted.org/packages/1d/56/3f355f931c239c260b4fe3bd6433ec6c9e6185cd5ae0970fe89d0ca6daee/qdrant_client-1.14.3.tar.gz", hash = "sha256:bb899e3e065b79c04f5e47053d59176150c0a5dabc09d7f476c8ce8e52f4d281", size = 286766, upload-time = "2025-06-16T11:13:47.838Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/35/5e/8174c845707e60b60b65c58f01e40bbc1d8181b5ff6463f25df470509917/qdrant_client-1.14.3-py3-none-any.whl", hash = "sha256:66faaeae00f9b5326946851fe4ca4ddb1ad226490712e2f05142266f68dfc04d", size = 328969, upload-time = "2025-06-16T11:13:46.636Z" },
++]
++
++[[package]]
++name = "redis"
++version = "6.2.0"
++source = { registry = "https://pypi.org/simple" }
++dependencies = [
++    { name = "async-timeout", marker = "python_full_version < '3.11.3'" },
++]
++sdist = { url = "https://files.pythonhosted.org/packages/ea/9a/0551e01ba52b944f97480721656578c8a7c46b51b99d66814f85fe3a4f3e/redis-6.2.0.tar.gz", hash = "sha256:e821f129b75dde6cb99dd35e5c76e8c49512a5a0d8dfdc560b2fbd44b85ca977", size = 4639129, upload-time = "2025-05-28T05:01:18.91Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/13/67/e60968d3b0e077495a8fee89cf3f2373db98e528288a48f1ee44967f6e8c/redis-6.2.0-py3-none-any.whl", hash = "sha256:c8ddf316ee0aab65f04a11229e94a64b2618451dab7a67cb2f77eb799d872d5e", size = 278659, upload-time = "2025-05-28T05:01:16.955Z" },
++]
++
+ [[package]]
+ name = "requests"
+-version = "2.32.4"
++version = "2.32.3"
+ source = { registry = "https://pypi.org/simple" }
+ dependencies = [
+     { name = "certifi" },
+@@ -1196,9 +1815,39 @@ dependencies = [
+     { name = "idna" },
+     { name = "urllib3" },
+ ]
+-sdist = { url = "https://files.pythonhosted.org/packages/e1/0a/929373653770d8a0d7ea76c37de6e41f11eb07559b103b1c02cafb3f7cf8/requests-2.32.4.tar.gz", hash = "sha256:27d0316682c8a29834d3264820024b62a36942083d52caf2f14c0591336d3422", size = 135258, upload-time = "2025-06-09T16:43:07.34Z" }
++sdist = { url = "https://files.pythonhosted.org/packages/63/70/2bf7780ad2d390a8d301ad0b550f1581eadbd9a20f896afe06353c2a2913/requests-2.32.3.tar.gz", hash = "sha256:55365417734eb18255590a9ff9eb97e9e1da868d4ccd6402399eaf68af20a760", size = 131218, upload-time = "2024-05-29T15:37:49.536Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/f9/9b/335f9764261e915ed497fcdeb11df5dfd6f7bf257d4a6a2a686d80da4d54/requests-2.32.3-py3-none-any.whl", hash = "sha256:70761cfe03c773ceb22aa2f671b4757976145175cdfca038c02654d061d6dcc6", size = 64928, upload-time = "2024-05-29T15:37:47.027Z" },
++]
++
++[[package]]
++name = "s3transfer"
++version = "0.13.0"
++source = { registry = "https://pypi.org/simple" }
++dependencies = [
++    { name = "botocore" },
++]
++sdist = { url = "https://files.pythonhosted.org/packages/ed/5d/9dcc100abc6711e8247af5aa561fc07c4a046f72f659c3adea9a449e191a/s3transfer-0.13.0.tar.gz", hash = "sha256:f5e6db74eb7776a37208001113ea7aa97695368242b364d73e91c981ac522177", size = 150232, upload-time = "2025-05-22T19:24:50.245Z" }
+ wheels = [
+-    { url = "https://files.pythonhosted.org/packages/7c/e4/56027c4a6b4ae70ca9de302488c5ca95ad4a39e190093d6c1a8ace08341b/requests-2.32.4-py3-none-any.whl", hash = "sha256:27babd3cda2a6d50b30443204ee89830707d396671944c998b5975b031ac2b2c", size = 64847, upload-time = "2025-06-09T16:43:05.728Z" },
++    { url = "https://files.pythonhosted.org/packages/18/17/22bf8155aa0ea2305eefa3a6402e040df7ebe512d1310165eda1e233c3f8/s3transfer-0.13.0-py3-none-any.whl", hash = "sha256:0148ef34d6dd964d0d8cf4311b2b21c474693e57c2e069ec708ce043d2b527be", size = 85152, upload-time = "2025-05-22T19:24:48.703Z" },
++]
++
++[[package]]
++name = "six"
++version = "1.17.0"
++source = { registry = "https://pypi.org/simple" }
++sdist = { url = "https://files.pythonhosted.org/packages/94/e7/b2c673351809dca68a0e064b6af791aa332cf192da575fd474ed7d6f16a2/six-1.17.0.tar.gz", hash = "sha256:ff70335d468e7eb6ec65b95b99d3a2836546063f63acc5171de367e834932a81", size = 34031, upload-time = "2024-12-04T17:35:28.174Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl", hash = "sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274", size = 11050, upload-time = "2024-12-04T17:35:26.475Z" },
++]
++
++[[package]]
++name = "smmap"
++version = "5.0.2"
++source = { registry = "https://pypi.org/simple" }
++sdist = { url = "https://files.pythonhosted.org/packages/44/cd/a040c4b3119bbe532e5b0732286f805445375489fceaec1f48306068ee3b/smmap-5.0.2.tar.gz", hash = "sha256:26ea65a03958fa0c8a1c7e8c7a58fdc77221b8910f6be2131affade476898ad5", size = 22329, upload-time = "2025-01-02T07:14:40.909Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/04/be/d09147ad1ec7934636ad912901c5fd7667e1c858e19d355237db0d0cd5e4/smmap-5.0.2-py3-none-any.whl", hash = "sha256:b30115f0def7d7531d22a0fb6502488d879e75b260a9db4d0819cfb25403af5e", size = 24303, upload-time = "2025-01-02T07:14:38.724Z" },
+ ]
+ 
+ [[package]]
+@@ -1210,6 +1859,20 @@ wheels = [
+     { url = "https://files.pythonhosted.org/packages/e9/44/75a9c9421471a6c4805dbf2356f7c181a29c1879239abab1ea2cc8f38b40/sniffio-1.3.1-py3-none-any.whl", hash = "sha256:2f6da418d1f1e0fddd844478f41680e794e6051915791a034ff65e5f100525a2", size = 10235, upload-time = "2024-02-25T23:20:01.196Z" },
+ ]
+ 
++[[package]]
++name = "stack-data"
++version = "0.6.3"
++source = { registry = "https://pypi.org/simple" }
++dependencies = [
++    { name = "asttokens" },
++    { name = "executing" },
++    { name = "pure-eval" },
++]
++sdist = { url = "https://files.pythonhosted.org/packages/28/e3/55dcc2cfbc3ca9c29519eb6884dd1415ecb53b0e934862d3559ddcb7e20b/stack_data-0.6.3.tar.gz", hash = "sha256:836a778de4fec4dcd1dcd89ed8abff8a221f58308462e1c4aa2a3cf30148f0b9", size = 44707, upload-time = "2023-09-30T13:58:05.479Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/f1/7b/ce1eafaf1a76852e2ec9b22edecf1daa58175c090266e9f6c64afcd81d91/stack_data-0.6.3-py3-none-any.whl", hash = "sha256:d5558e0c25a4cb0853cddad3d77da9891a08cb85dd9f9f91b9f8cd66e511e695", size = 24521, upload-time = "2023-09-30T13:58:03.53Z" },
++]
++
+ [[package]]
+ name = "tomli"
+ version = "2.2.1"
+@@ -1251,6 +1914,15 @@ wheels = [
+     { url = "https://files.pythonhosted.org/packages/d0/30/dc54f88dd4a2b5dc8a0279bdd7270e735851848b762aeb1c1184ed1f6b14/tqdm-4.67.1-py3-none-any.whl", hash = "sha256:26445eca388f82e72884e0d580d5464cd801a3ea01e63e5601bdff9ba6a48de2", size = 78540, upload-time = "2024-11-24T20:12:19.698Z" },
+ ]
+ 
++[[package]]
++name = "traitlets"
++version = "5.14.3"
++source = { registry = "https://pypi.org/simple" }
++sdist = { url = "https://files.pythonhosted.org/packages/eb/79/72064e6a701c2183016abbbfedaba506d81e30e232a68c9f0d6f6fcd1574/traitlets-5.14.3.tar.gz", hash = "sha256:9ed0579d3502c94b4b3732ac120375cda96f923114522847de4b3bb98b96b6b7", size = 161621, upload-time = "2024-04-19T11:11:49.746Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/00/c0/8f5d070730d7836adc9c9b6408dec68c6ced86b304a9b26a14df072a6e8c/traitlets-5.14.3-py3-none-any.whl", hash = "sha256:b74e89e397b1ed28cc831db7aea759ba6640cb3de13090ca145426688ff1ac4f", size = 85359, upload-time = "2024-04-19T11:11:46.763Z" },
++]
++
+ [[package]]
+ name = "tree-sitter"
+ version = "0.24.0"
+@@ -1332,8 +2004,14 @@ source = { editable = "." }
+ dependencies = [
+     { name = "aiohttp" },
+     { name = "asyncio" },
++    { name = "boto3" },
++    { name = "celery" },
+     { name = "click" },
+     { name = "faiss-cpu" },
++    { name = "gitpython" },
++    { name = "jinja2" },
++    { name = "multilspy" },
++    { name = "neo4j" },
+     { name = "networkx", version = "3.4.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+     { name = "networkx", version = "3.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+     { name = "numpy" },
+@@ -1348,6 +2026,9 @@ dependencies = [
+     { name = "pydantic" },
+     { name = "python-dotenv" },
+     { name = "python-louvain" },
++    { name = "pyvis" },
++    { name = "qdrant-client" },
++    { name = "redis" },
+     { name = "tree-sitter" },
+     { name = "tree-sitter-javascript" },
+     { name = "tree-sitter-python" },
+@@ -1369,10 +2050,16 @@ requires-dist = [
+     { name = "aiohttp", specifier = ">=3.8.0" },
+     { name = "asyncio", specifier = ">=3.4.3" },
+     { name = "black", marker = "extra == 'dev'", specifier = ">=23.0.0" },
++    { name = "boto3", specifier = ">=1.39.4" },
++    { name = "celery", specifier = ">=5.5.3" },
+     { name = "click", specifier = ">=8.0.0" },
+     { name = "faiss-cpu", specifier = ">=1.7.4" },
+     { name = "flake8", marker = "extra == 'dev'", specifier = ">=6.0.0" },
++    { name = "gitpython", specifier = ">=3.1.44" },
++    { name = "jinja2", specifier = ">=3.1.6" },
++    { name = "multilspy", specifier = ">=0.0.15" },
+     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.0.0" },
++    { name = "neo4j", specifier = ">=5.28.1" },
+     { name = "networkx", specifier = ">=3.0" },
+     { name = "numpy", specifier = ">=1.24.0" },
+     { name = "openai", specifier = ">=1.3.0" },
+@@ -1388,6 +2075,9 @@ requires-dist = [
+     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.21.0" },
+     { name = "python-dotenv", specifier = ">=1.0.0" },
+     { name = "python-louvain", specifier = ">=0.16" },
++    { name = "pyvis", specifier = ">=0.3.2" },
++    { name = "qdrant-client", specifier = ">=1.14.3" },
++    { name = "redis", specifier = ">=6.2.0" },
+     { name = "tree-sitter", specifier = ">=0.20.0" },
+     { name = "tree-sitter-javascript", specifier = ">=0.20.0" },
+     { name = "tree-sitter-python", specifier = ">=0.20.0" },
+@@ -1417,6 +2107,15 @@ wheels = [
+     { url = "https://files.pythonhosted.org/packages/17/69/cd203477f944c353c31bade965f880aa1061fd6bf05ded0726ca845b6ff7/typing_inspection-0.4.1-py3-none-any.whl", hash = "sha256:389055682238f53b04f7badcb49b989835495a96700ced5dab2d8feae4b26f51", size = 14552, upload-time = "2025-05-21T18:55:22.152Z" },
+ ]
+ 
++[[package]]
++name = "tzdata"
++version = "2025.2"
++source = { registry = "https://pypi.org/simple" }
++sdist = { url = "https://files.pythonhosted.org/packages/95/32/1a225d6164441be760d75c2c42e2780dc0873fe382da3e98a2e1e48361e5/tzdata-2025.2.tar.gz", hash = "sha256:b60a638fcc0daffadf82fe0f57e53d06bdec2f36c4df66280ae79bce6bd6f2b9", size = 196380, upload-time = "2025-03-23T13:54:43.652Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/5c/23/c7abc0ca0a1526a0774eca151daeb8de62ec457e77262b66b359c3c7679e/tzdata-2025.2-py2.py3-none-any.whl", hash = "sha256:1a403fada01ff9221ca8044d701868fa132215d84beb92242d9acd2147f667a8", size = 347839, upload-time = "2025-03-23T13:54:41.845Z" },
++]
++
+ [[package]]
+ name = "unidiff"
+ version = "0.7.5"
+@@ -1435,6 +2134,24 @@ wheels = [
+     { url = "https://files.pythonhosted.org/packages/a7/c2/fe1e52489ae3122415c51f387e221dd0773709bad6c6cdaa599e8a2c5185/urllib3-2.5.0-py3-none-any.whl", hash = "sha256:e6b01673c0fa6a13e374b50871808eb3bf7046c4b125b216f6bf1cc604cff0dc", size = 129795, upload-time = "2025-06-18T14:07:40.39Z" },
+ ]
+ 
++[[package]]
++name = "vine"
++version = "5.1.0"
++source = { registry = "https://pypi.org/simple" }
++sdist = { url = "https://files.pythonhosted.org/packages/bd/e4/d07b5f29d283596b9727dd5275ccbceb63c44a1a82aa9e4bfd20426762ac/vine-5.1.0.tar.gz", hash = "sha256:8b62e981d35c41049211cf62a0a1242d8c1ee9bd15bb196ce38aefd6799e61e0", size = 48980, upload-time = "2023-11-05T08:46:53.857Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/03/ff/7c0c86c43b3cbb927e0ccc0255cb4057ceba4799cd44ae95174ce8e8b5b2/vine-5.1.0-py3-none-any.whl", hash = "sha256:40fdf3c48b2cfe1c38a49e9ae2da6fda88e4794c810050a728bd7413811fb1dc", size = 9636, upload-time = "2023-11-05T08:46:51.205Z" },
++]
++
++[[package]]
++name = "wcwidth"
++version = "0.2.13"
++source = { registry = "https://pypi.org/simple" }
++sdist = { url = "https://files.pythonhosted.org/packages/6c/63/53559446a878410fc5a5974feb13d31d78d752eb18aeba59c7fef1af7598/wcwidth-0.2.13.tar.gz", hash = "sha256:72ea0c06399eb286d978fdedb6923a9eb47e1c486ce63e9b4e64fc18303972b5", size = 101301, upload-time = "2024-01-06T02:10:57.829Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/fd/84/fd2ba7aafacbad3c4201d395674fc6348826569da3c0937e75505ead3528/wcwidth-0.2.13-py2.py3-none-any.whl", hash = "sha256:3da69048e4540d84af32131829ff948f1e022c1c6bdb8d6102117aac784f6859", size = 34166, upload-time = "2024-01-06T02:10:55.763Z" },
++]
++
+ [[package]]
+ name = "wrapt"
+ version = "1.17.2"
+diff --git a/vector_db/vector_db.faiss b/vector_db/vector_db.faiss
+deleted file mode 100644
+index 423bff1..0000000
+Binary files a/vector_db/vector_db.faiss and /dev/null differ
+diff --git a/vector_db/vector_db.graph b/vector_db/vector_db.graph
+deleted file mode 100644
+index eea376c..0000000
+Binary files a/vector_db/vector_db.graph and /dev/null differ
+diff --git a/vector_db/vector_db.pkl b/vector_db/vector_db.pkl
+deleted file mode 100644
+index 8c78625..0000000
+Binary files a/vector_db/vector_db.pkl and /dev/null differ

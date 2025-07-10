@@ -1,16 +1,12 @@
-from typing import List, Dict, Tuple
+from typing import List
 from dataclasses import dataclass
-from core.vectordb import VectorMetadata
+from storage.vector_store import VectorSearchResult
 from inference.openai_client import LLMClient
-from utils.logging import get_logger
-
-logger = get_logger(__name__)
 
 
 @dataclass
 class RerankedResult:
-    metadata: VectorMetadata
-    content: str
+    result: VectorSearchResult
     score: float
     rank: int
 
@@ -24,25 +20,22 @@ class CodeReranker:
     async def rerank_search_results(
         self,
         query: str,
-        search_results: List[Tuple[VectorMetadata, float]],
-        chunk_contents: Dict[str, str],
+        search_results: List[VectorSearchResult],
         top_k: int = 5,
     ) -> List[RerankedResult]:
         """Rerank search results by relevance."""
         if not search_results:
-            logger.debug("No search results to rerank.")
             return []
 
         # Prepare documents
         documents = []
-        metadata_list = []
+        result_list = []
 
-        for metadata, score in search_results:
-            content = chunk_contents.get(metadata.chunk_id, "")
-            if content:
-                doc_text = self._format_chunk(metadata, content)
+        for result in search_results:
+            if result.content:
+                doc_text = self._format_chunk(result)
                 documents.append(doc_text)
-                metadata_list.append((metadata, score))
+                result_list.append(result)
 
         if not documents:
             return []
@@ -54,12 +47,11 @@ class CodeReranker:
         results = []
         for ranking in rankings:
             doc_index = ranking["index"]
-            if doc_index < len(metadata_list):
-                metadata, original_score = metadata_list[doc_index]
+            if doc_index < len(result_list):
+                vector_result = result_list[doc_index]
 
                 result = RerankedResult(
-                    metadata=metadata,
-                    content=documents[doc_index],
+                    result=vector_result,
                     score=ranking["score"],
                     rank=ranking["rank"],
                 )
@@ -67,6 +59,10 @@ class CodeReranker:
 
         return results
 
-    def _format_chunk(self, metadata: VectorMetadata, content: str) -> str:
+    def _format_chunk(self, result: VectorSearchResult) -> str:
         """Format chunk for reranking."""
-        return f"{metadata.chunk_type} {metadata.name or ''} in {metadata.file_path}:\n{content}"
+        metadata = result.metadata
+        chunk_type = metadata.get("chunk_type", "code")
+        name = metadata.get("name", "")
+        file_path = metadata.get("file_path", "")
+        return f"{chunk_type} {name} in {file_path}:\n{result.content}"

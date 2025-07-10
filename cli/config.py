@@ -4,11 +4,8 @@ from typing import Optional
 from dataclasses import dataclass, field
 import json
 from dotenv import load_dotenv
-from utils.logging import get_logger
 
 load_dotenv()
-
-logger = get_logger(__name__)
 
 @dataclass
 class ModelConfig:
@@ -34,7 +31,7 @@ class Config:
     log_file: str = "review_output.log"
 
     # Processing configuration
-    embedding_batch_size: int = 10
+    embedding_batch_size: int = 5  # Reduced from 10 to avoid rate limits
     vector_search_k: int = 10
     rerank_top_k: int = 5
     max_tokens: int = 2048
@@ -81,7 +78,7 @@ class Config:
                         elif hasattr(config, key):
                             setattr(config, key, value)
             except Exception as e:
-                logger.warning(f"Could not load config file: {e}")
+                print(f"Warning: Could not load config file: {e}")
 
         # Apply default API key to individual models if not specified
         if default_openrouter_api_key:

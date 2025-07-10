@@ -2,10 +2,7 @@ from typing import List
 from dataclasses import dataclass
 from processing.diff_processor import ChangedChunk
 from processing.reranker import RerankedResult
-from utils.logging import get_logger
 from utils.content_utils import smart_truncate
-
-logger = get_logger(__name__)
 
 
 @dataclass
@@ -121,9 +118,7 @@ Use clear, well-structured sections and bullet points for readability.
             "For each point, provide specific examples and actionable suggestions.",
         ]
 
-        logger.debug(
-            f"Built review prompt with diff length {len(diff_content)} and context length {len(context_section)}"
-        )
+
         return "\n".join(prompt_parts)
 
     def build_quick_review_prompt(self, diff_content: str) -> str:
@@ -163,42 +158,52 @@ Use clear, well-structured sections and bullet points for readability.
         if context_chunks:
             context_parts.append("\n### Similar/Related Code")
             for i, result in enumerate(context_chunks[:5], 1):
-                context_parts.append(f"\n#### Context {i}: {result.metadata.file_path}")
-                context_parts.append(f"**Type:** {result.metadata.chunk_type}")
+                # Handle both old and new result formats
+                if hasattr(result, "result"):
+                    # New RerankedResult format
+                    metadata = result.result.metadata
+                    content = result.result.content
+                    score = result.score
+                else:
+                    # Old format (fallback)
+                    metadata = result.metadata
+                    content = result.content
+                    score = result.score
 
-                if result.metadata.name:
-                    context_parts.append(f"**Name:** {result.metadata.name}")
+                context_parts.append(
+                    f"\n#### Context {i}: {metadata.get('file_path', 'unknown')}"
+                )
+                context_parts.append(
+                    f"**Type:** {metadata.get('chunk_type', 'unknown')}"
+                )
+
+                if metadata.get("name"):
+                    context_parts.append(f"**Name:** {metadata.get('name')}")
 
                 # Add enriched metadata if available
-                if (
-                    hasattr(result.metadata, "parent_name")
-                    and result.metadata.parent_name
-                ):
-                    parent_type = getattr(result.metadata, "parent_type", "unknown")
+                if metadata.get("parent_name"):
+                    parent_type = metadata.get("parent_type", "unknown")
                     context_parts.append(
-                        f"**Parent:** {parent_type} `{result.metadata.parent_name}`"
+                        f"**Parent:** {parent_type} `{metadata.get('parent_name')}`"
                     )
 
-                if (
-                    hasattr(result.metadata, "full_signature")
-                    and result.metadata.full_signature
-                ):
+                if metadata.get("full_signature"):
                     context_parts.append(
-                        f"**Signature:** `{result.metadata.full_signature}`"
+                        f"**Signature:** `{metadata.get('full_signature')}`"
                     )
 
-                if hasattr(result.metadata, "docstring") and result.metadata.docstring:
+                if metadata.get("docstring"):
                     safe_docstring = smart_truncate(
-                        result.metadata.docstring,
+                        metadata.get("docstring"),
                         max_length=1000,
                         preserve_structure=False,
                     )
                     context_parts.append(f"**Documentation:** {safe_docstring}")
 
-                context_parts.append(f"**Relevance Score:** {result.score:.2f}")
-                context_parts.append("```" + result.metadata.language)
+                context_parts.append(f"**Relevance Score:** {score:.2f}")
+                context_parts.append("```" + metadata.get("language", "text"))
                 safe_content = smart_truncate(
-                    result.content, max_length=8000, preserve_structure=True
+                    content, max_length=8000, preserve_structure=True
                 )
                 context_parts.append(safe_content)
                 context_parts.append("```")

@@ -198,17 +198,8 @@ class TreeSitterChunker:
             current_parent_type = "class"
 
         elif node.type in ["import_statement", "import_from_statement"]:
-            chunk = self._create_chunk(
-                node,
-                content,
-                file_path,
-                "python",
-                "import",
-                parent_name=parent_name,
-                parent_type=parent_type,
-            )
-            if chunk:
-                chunks.append(chunk)
+            # Skip individual import statements - they're not useful for code review
+            pass
 
         for child in node.children:
             self._extract_python_chunks(
@@ -433,6 +424,7 @@ class TreeSitterChunker:
             ".pytest_cache",
             "site-packages",
             "typings",
+            "lib",  # Skip library/vendor files
         }
 
         for part in file_path.parts:
