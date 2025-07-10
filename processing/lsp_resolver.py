@@ -2,16 +2,14 @@ from typing import List, Dict, Optional
 from dataclasses import dataclass
 from pathlib import Path
 
-import tree_sitter_python as tspython
-import tree_sitter_javascript as tsjavascript
-import tree_sitter_typescript as tstypescript
-from tree_sitter import Language, Parser, Node
+from tree_sitter import Parser, Node
 
 from multilspy import LanguageServer
 from multilspy.multilspy_config import MultilspyConfig
 from multilspy.multilspy_logger import MultilspyLogger
 
-from core.chunker import CodeChunk
+from core.chunk_types import CodeChunk
+from core.language_registry import get_language_registry
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -41,39 +39,19 @@ class Dependency:
 class LSPResolver:
     """Resolve AST-based symbol dependencies and relationships using LSP and Tree-sitter."""
 
-    # Language mappings for Tree-sitter
-    LANGUAGE_MAPPINGS = {
-        ".py": ("python", Language(tspython.language())),
-        ".js": ("javascript", Language(tsjavascript.language())),
-        ".jsx": ("javascript", Language(tsjavascript.language())),
-        ".ts": ("typescript", Language(tstypescript.language_typescript())),
-        ".tsx": ("typescript", Language(tstypescript.language_tsx())),
-    }
-
     def __init__(self, repo_path: str):
         self.repo_path = repo_path
         self.language_servers: Dict[str, LanguageServer] = {}
-        self.parsers: Dict[str, Parser] = {}
         self.dependencies: List[Dependency] = []
-        self._setup_parsers()
-
-    def _setup_parsers(self):
-        """Initialize Tree-sitter parsers for supported languages."""
-        for ext, (lang_name, language) in self.LANGUAGE_MAPPINGS.items():
-            if lang_name not in self.parsers:
-                parser = Parser(language)
-                self.parsers[lang_name] = parser
+        self.registry = get_language_registry()
 
     def _detect_language(self, file_path: str) -> Optional[str]:
         """Detect the programming language based on file extension."""
-        file_ext = Path(file_path).suffix.lower()
-        if file_ext in self.LANGUAGE_MAPPINGS:
-            return self.LANGUAGE_MAPPINGS[file_ext][0]
-        return None
+        return self.registry.get_language_for_file(file_path)
 
     def _get_parser(self, language: str) -> Optional[Parser]:
         """Get Tree-sitter parser for a language."""
-        return self.parsers.get(language)
+        return self.registry.get_parser(language)
 
     async def analyze_repository(self, chunks: List[CodeChunk]):
         """Analyze repository and build symbol table and dependencies using Tree-sitter and LSP."""
@@ -227,38 +205,23 @@ class LSPResolver:
         language_server: LanguageServer,
     ):
         """Analyze AST nodes to find dependencies using Tree-sitter."""
-        # Define node types we're interested in for each language
-        node_types_of_interest = {
-            "python": {
-                "import_statement",
-                "import_from_statement",
-                "call",
-                "attribute",
-                "class_definition",
-                "function_definition",
-                "identifier",
-            },
-            "javascript": {
-                "import_statement",
-                "call_expression",
-                "member_expression",
-                "class_declaration",
-                "function_declaration",
-                "identifier",
-                "new_expression",
-            },
-            "typescript": {
-                "import_statement",
-                "call_expression",
-                "member_expression",
-                "class_declaration",
-                "function_declaration",
-                "identifier",
-                "new_expression",
-            },
+        # Get dependency node types from language config
+        config = self.registry.get_config(language)
+        if not config:
+            logger.debug(f"No config available for language: {language}")
+            return
+        
+        # Collect all node types that might indicate dependencies
+        target_types = set()
+        for node_type_list in config.node_types.values():
+            target_types.update(node_type_list)
+        
+        # Add common dependency-related node types
+        common_dependency_types = {
+            "import_statement", "import_from_statement", "call", "call_expression",
+            "attribute", "member_expression", "identifier", "new_expression"
         }
-
-        target_types = node_types_of_interest.get(language, set())
+        target_types.update(common_dependency_types)
 
         # Recursively traverse the AST
         await self._traverse_node(
@@ -337,37 +300,44 @@ class LSPResolver:
             )
 
     def _extract_symbol_name(self, node: Node, language: str) -> Optional[str]:
-        """Extract symbol name from AST node."""
+        """Extract symbol name from AST node using generic patterns."""
         try:
-            if language == "python":
-                if node.type in ["import_statement", "import_from_statement"]:
-                    # Find the module name in import statements
-                    for child in node.children:
-                        if child.type == "dotted_name" or child.type == "identifier":
-                            return child.text.decode("utf8")
-                elif node.type in ["call", "attribute"]:
-                    # Extract function/method name
-                    if node.children:
-                        return node.children[0].text.decode("utf8")
-                elif node.type == "identifier":
-                    return node.text.decode("utf8")
-
-            elif language in ["javascript", "typescript"]:
-                if node.type == "import_statement":
-                    # Find the source in import statements
-                    for child in node.children:
-                        if child.type == "string":
-                            return child.text.decode("utf8").strip("\"'")
-                elif node.type in ["call_expression", "new_expression"]:
-                    # Extract function name
-                    if node.children:
-                        return node.children[0].text.decode("utf8")
-                elif node.type == "member_expression":
-                    # Extract property name
-                    if len(node.children) >= 3:
-                        return node.children[2].text.decode("utf8")
-                elif node.type == "identifier":
-                    return node.text.decode("utf8")
+            # Generic identifier extraction - works for most languages
+            if node.type == "identifier":
+                return node.text.decode("utf8")
+            
+            # Import/require statements - look for string literals or identifiers
+            if "import" in node.type or "require" in node.type or "use" in node.type:
+                for child in node.children:
+                    if child.type in ["string", "string_literal"]:
+                        return child.text.decode("utf8").strip("\"'")
+                    elif child.type in ["dotted_name", "identifier", "scoped_identifier"]:
+                        return child.text.decode("utf8")
+            
+            # Function/method calls - extract the callable name
+            if "call" in node.type:
+                if node.children:
+                    first_child = node.children[0]
+                    if first_child.type == "identifier":
+                        return first_child.text.decode("utf8")
+                    elif hasattr(first_child, 'children') and first_child.children:
+                        # Handle member access like obj.method()
+                        return first_child.children[-1].text.decode("utf8") if first_child.children else None
+            
+            # Member/attribute access - get the property name
+            if node.type in ["attribute", "member_expression", "field_expression"]:
+                if len(node.children) >= 2:
+                    # Usually the last child is the member name
+                    return node.children[-1].text.decode("utf8")
+            
+            # New expressions - get the type being instantiated
+            if "new" in node.type and node.children:
+                return node.children[0].text.decode("utf8")
+            
+            # For other node types, try to extract the first meaningful identifier
+            for child in node.children:
+                if child.type == "identifier":
+                    return child.text.decode("utf8")
 
         except Exception as e:
             logger.debug(f"Failed to extract symbol name from {node.type}: {e}")
@@ -378,31 +348,19 @@ class LSPResolver:
         self, node_type: str, language: str
     ) -> Optional[str]:
         """Map AST node types to dependency types."""
-        type_mappings = {
-            "python": {
-                "import_statement": "imports",
-                "import_from_statement": "imports",
-                "call": "calls",
-                "attribute": "uses",
-                "identifier": "uses",
-            },
-            "javascript": {
-                "import_statement": "imports",
-                "call_expression": "calls",
-                "new_expression": "instantiates",
-                "member_expression": "uses",
-                "identifier": "uses",
-            },
-            "typescript": {
-                "import_statement": "imports",
-                "call_expression": "calls",
-                "new_expression": "instantiates",
-                "member_expression": "uses",
-                "identifier": "uses",
-            },
-        }
-
-        return type_mappings.get(language, {}).get(node_type)
+        # Generic mapping that works across languages
+        if "import" in node_type:
+            return "imports"
+        elif "call" in node_type:
+            return "calls"
+        elif "new" in node_type:
+            return "instantiates"
+        elif node_type in ["attribute", "member_expression"]:
+            return "uses"
+        elif node_type == "identifier":
+            return "uses"
+        else:
+            return "uses"
 
     async def _process_document_symbols(
         self, symbols: list, chunk: CodeChunk, chunk_map: Dict[str, CodeChunk]
