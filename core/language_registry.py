@@ -182,6 +182,38 @@ class LanguageRegistry:
                 string_patterns=['"', "'"],
                 lsp_language_id="kotlin"
             ),
+            "css": LanguageConfig(
+                name="css",
+                extensions=[".css"],
+                tree_sitter_module="tree_sitter_css",
+                node_types={
+                    "rule": ["rule_set"],
+                    "selector": ["class_selector", "id_selector", "tag_name", "pseudo_class_selector", "pseudo_element_selector", "attribute_selector"],
+                    "property": ["property_name", "declaration"],
+                    "at_rule": ["import_statement", "media_statement", "keyframes_statement"],
+                    "function": ["call_expression", "function_name"],
+                    "value": ["integer_value", "float_value", "color_value", "string_value", "plain_value"],
+                },
+                comment_patterns=["/*"],
+                string_patterns=['"', "'"],
+                lsp_language_id="css"
+            ),
+            "html": LanguageConfig(
+                name="html",
+                extensions=[".html", ".htm"],
+                tree_sitter_module="tree_sitter_html",
+                node_types={
+                    "element": ["element", "start_tag", "end_tag", "self_closing_tag"],
+                    "attribute": ["attribute", "attribute_name", "attribute_value"],
+                    "text": ["text"],
+                    "script": ["script_element"],
+                    "style": ["style_element"],
+                    "comment": ["comment"],
+                },
+                comment_patterns=["<!--"],
+                string_patterns=['"', "'"],
+                lsp_language_id="html"
+            ),
             "c": LanguageConfig(
                 name="c",
                 extensions=[".c", ".h"],
@@ -340,7 +372,7 @@ class LanguageRegistry:
                 'tree_sitter_python', 'tree_sitter_javascript', 'tree_sitter_typescript',
                 'tree_sitter_java', 'tree_sitter_rust', 'tree_sitter_go', 'tree_sitter_ruby',
                 'tree_sitter_csharp', 'tree_sitter_c_sharp', 'tree_sitter_dart', 'tree_sitter_kotlin',
-                'tree_sitter_c', 'tree_sitter_bash', 'tree_sitter_scala'
+                'tree_sitter_c', 'tree_sitter_bash', 'tree_sitter_scala', 'tree_sitter_css', 'tree_sitter_html'
             ]:
                 lang_name = name.replace('tree_sitter_', '')
                 
