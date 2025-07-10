@@ -1,16 +1,16 @@
-# Turbo-Review
+# CodeMind
 
-AI-powered code review system using Hierarchical Code Graph Summarization (HCGS) with LSP-enhanced dependency resolution for semantic code analysis and automated review generation.
+AI-powered codebase intelligence platform using Hierarchical Code Graph Summarization (HCGS) with LSP-enhanced dependency resolution for semantic code analysis, natural language chat, and automated code reviews.
 
 ## Overview
 
-Turbo-Review revolutionizes code review by combining Tree-sitter parsing with Language Server Protocol (LSP) analysis to build precise knowledge graphs of code relationships. The system implements Hierarchical Code Graph Summarization (HCGS) for multi-level code understanding and generates contextual feedback on code changes using large language models.
+CodeMind revolutionizes codebase interaction by combining Tree-sitter parsing with Language Server Protocol (LSP) analysis to build precise knowledge graphs of code relationships. The system implements Hierarchical Code Graph Summarization (HCGS) for multi-level code understanding and enables natural language conversations with codebases, semantic search, and automated code reviews using large language models.
 
 ## Key Innovation: Hybrid Tree-sitter + LSP Architecture
 
 ### Why This Approach?
 
-Traditional code analysis tools rely solely on Abstract Syntax Trees (AST) or basic pattern matching, which cannot accurately resolve cross-file dependencies or understand semantic relationships. Turbo-Review combines the best of both worlds:
+Traditional code analysis tools rely solely on Abstract Syntax Trees (AST) or basic pattern matching, which cannot accurately resolve cross-file dependencies or understand semantic relationships. CodeMind combines the best of both worlds:
 
 **Tree-sitter** provides:
 - Fast, reliable parsing of code structure
@@ -32,10 +32,12 @@ Traditional code analysis tools rely solely on Abstract Syntax Trees (AST) or ba
 - **Hybrid Analysis Engine**: Combines Tree-sitter parsing with LSP semantic analysis
 - **Rich Knowledge Graph**: Builds detailed graphs of code entities with precise relationships (calls, imports, inherits, instantiates, uses)
 - **Vector Search**: FAISS-powered similarity search for relevant code context
+- **Natural Language Chat**: Conversational interface for codebase exploration and questions
 - **Multi-Language Support**: Python, JavaScript, TypeScript, JSX, TSX files
 - **GitHub Integration**: Automated pull request reviews
 - **Observability**: Complete OpenTelemetry instrumentation with Grafana dashboards
 - **CLI Interface**: Simple command-line tools for local development
+- **API Platform**: RESTful API for integration with external tools and services
 
 ## How It Works: Complete Architecture
 
@@ -116,7 +118,7 @@ python -m cli.commands review changes.diff
 1. Clone the repository:
 ```bash
 git clone <repository-url>
-cd turbo-review
+cd codemind
 ```
 
 2. Install dependencies:
@@ -132,7 +134,7 @@ export OPENROUTER_API_KEY="your-api-key-here"
 
 # Optional (for monitoring)
 export OTEL_EXPORTER_OTLP_ENDPOINT="http://localhost:4317"
-export OTEL_SERVICE_NAME="turbo-review"
+export OTEL_SERVICE_NAME="codemind"
 ```
 
 ## Usage
@@ -258,7 +260,7 @@ When reviewing changes to `create_user`, the system includes:
 
 ```python
 from integrations.github import GitHubIntegration, GitHubConfig
-from cli.config import Config
+from config import Config
 
 # Initialize with GitHub credentials
 github_config = GitHubConfig(

@@ -1,4 +1,4 @@
-"""OpenTelemetry setup and instrumentation for turbo-review."""
+"""OpenTelemetry setup and instrumentation for CodeMind."""
 
 import os
 from typing import Optional, Dict, Any
@@ -18,7 +18,7 @@ from utils.logging import get_logger
 
 
 class TelemetryManager:
-    """Manages OpenTelemetry setup for turbo-review."""
+    """Manages OpenTelemetry setup for CodeMind."""
 
     def __init__(self):
         self.tracer: Optional[trace.Tracer] = None
@@ -36,7 +36,7 @@ class TelemetryManager:
 
     def setup(
         self,
-        service_name: str = "turbo-review",
+        service_name: str = "codemind",
         service_version: str = "0.1.0",
         otlp_endpoint: str = "http://localhost:4317",
     ):
@@ -84,41 +84,41 @@ class TelemetryManager:
         self.logger.info(f"OpenTelemetry initialized for {service_name}")
 
     def _setup_metrics(self):
-        """Setup custom metrics for turbo-review."""
+        """Setup custom metrics for codemind."""
         if not self.meter:
             return
 
         self.review_duration_histogram = self.meter.create_histogram(
-            name="turbo_review_duration_seconds",
+            name="codemind_duration_seconds",
             description="Time taken to generate code reviews",
             unit="s",
         )
 
         self.embedding_duration_histogram = self.meter.create_histogram(
-            name="turbo_embedding_duration_seconds",
+            name="codemind_embedding_duration_seconds",
             description="Time taken to generate embeddings",
             unit="s",
         )
 
         self.retrieval_duration_histogram = self.meter.create_histogram(
-            name="turbo_retrieval_duration_seconds",
+            name="codemind_retrieval_duration_seconds",
             description="Time taken for vector retrieval",
             unit="s",
         )
 
         self.api_request_counter = self.meter.create_counter(
-            name="turbo_api_requests_total",
+            name="codemind_api_requests_total",
             description="Total number of API requests",
         )
 
         self.cost_counter = self.meter.create_counter(
-            name="turbo_cost_total",
+            name="codemind_cost_total",
             description="Total cost of API requests",
             unit="USD",
         )
 
         self.chunk_count_gauge = self.meter.create_up_down_counter(
-            name="turbo_chunks_indexed",
+            name="codemind_chunks_indexed",
             description="Number of code chunks indexed",
         )
 
@@ -188,7 +188,7 @@ def get_telemetry() -> TelemetryManager:
 def setup_telemetry():
     """Setup telemetry from environment variables."""
     otlp_endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4317")
-    service_name = os.getenv("OTEL_SERVICE_NAME", "turbo-review")
+    service_name = os.getenv("OTEL_SERVICE_NAME", "codemind")
     service_version = os.getenv("OTEL_SERVICE_VERSION", "0.1.0")
 
     telemetry.setup(

@@ -6,7 +6,7 @@ from openai import AsyncOpenAI
 from openai import RateLimitError, APIError
 from monitoring.telemetry import get_telemetry
 from utils.logging import get_logger
-from cli.config import ModelConfig
+from config import ModelConfig
 
 logger = get_logger(__name__)
 
@@ -22,6 +22,11 @@ class RateLimiter:
         self.consecutive_rate_limits = 0
         self.adaptive_delay = 1.0  # Start with 1 second base delay
         self._lock = asyncio.Lock()
+    
+    def update_limits(self, requests_per_minute: int, requests_per_second: float):
+        """Update rate limits dynamically."""
+        self.requests_per_minute = requests_per_minute
+        self.requests_per_second = requests_per_second
 
     async def acquire(self):
         """Acquire permission to make a request."""
@@ -112,7 +117,8 @@ class LLMClient:
         self.config = config
         self._clients: Dict[str, AsyncOpenAI] = {}
         # Limit concurrent requests to prevent overwhelming the API
-        self._semaphore = asyncio.Semaphore(5)  # Max 2 concurrent requests
+        self._semaphore = asyncio.Semaphore(5)  # Max 5 concurrent requests
+        self._rate_limiter_configured = False
 
     async def _retry_with_backoff(self, func, *args, max_retries=2, **kwargs):
         """Retry function with intelligent backoff for rate limit errors."""
@@ -162,6 +168,24 @@ class LLMClient:
                 duration, {"model": model, "batch_size": kwargs["batch_size"]}
             )
 
+    def _configure_rate_limiter_for_model(self, model_config: ModelConfig):
+        """Configure rate limiter based on whether model is local or remote."""
+        if not self._rate_limiter_configured and self.config:
+            is_local = ("127.0.0.1" in model_config.base_url or 
+                       "localhost" in model_config.base_url)
+            
+            if is_local:
+                requests_per_minute = getattr(self.config, 'local_requests_per_minute', 300)
+                requests_per_second = getattr(self.config, 'local_requests_per_second', 10.0)
+            else:
+                requests_per_minute = getattr(self.config, 'remote_requests_per_minute', 20)
+                requests_per_second = getattr(self.config, 'remote_requests_per_second', 0.5)
+            
+            _rate_limiter.update_limits(requests_per_minute, requests_per_second)
+            self._rate_limiter_configured = True
+            logger.info(f"Rate limiter configured for {'local' if is_local else 'remote'} model: "
+                       f"{requests_per_minute} req/min, {requests_per_second} req/sec")
+
     def _get_client_for_model(self, model_config: ModelConfig) -> AsyncOpenAI:
         """Returns an AsyncOpenAI client for the given model configuration, caching clients."""
         client_key = f"{model_config.base_url}-{model_config.api_key}"
@@ -172,6 +196,9 @@ class LLMClient:
             raise ValueError(
                 f"Base URL not configured for model: {model_config.model_name}"
             )
+
+        # Configure rate limiter based on model type
+        self._configure_rate_limiter_for_model(model_config)
 
         client = AsyncOpenAI(
             api_key=model_config.api_key,

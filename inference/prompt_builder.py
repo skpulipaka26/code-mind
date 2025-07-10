@@ -278,3 +278,75 @@ Use clear, well-structured sections and bullet points for readability.
             focus_parts.append(f"- {area}")
 
         return "\n".join(focus_parts)
+
+    def build_chat_prompt(
+        self,
+        query: str,
+        context_chunks: List[RerankedResult] = None,
+    ) -> str:
+        """Build a chat prompt for codebase questions."""
+        
+        prompt_parts = [
+            "# Codebase Assistant",
+            "",
+            f"## User Question",
+            query,
+            "",
+        ]
+        
+        # Add context if available
+        if context_chunks:
+            prompt_parts.extend([
+                "## Relevant Code Context",
+                "Here are the most relevant code chunks from the codebase:",
+                ""
+            ])
+            
+            for i, result in enumerate(context_chunks[:5], 1):
+                # Handle RerankedResult format
+                if hasattr(result, "result"):
+                    metadata = result.result.metadata
+                    content = result.result.content
+                    score = result.score
+                else:
+                    metadata = result.metadata
+                    content = result.content
+                    score = result.score
+                
+                prompt_parts.extend([
+                    f"### Context {i}: {metadata.get('file_path', 'unknown')}",
+                    f"**Type:** {metadata.get('chunk_type', 'unknown')}",
+                ])
+                
+                if metadata.get("name"):
+                    prompt_parts.append(f"**Name:** {metadata.get('name')}")
+                
+                if metadata.get("summary"):
+                    prompt_parts.append(f"**Summary:** {metadata.get('summary')}")
+                
+                prompt_parts.extend([
+                    f"**Relevance Score:** {score:.2f}",
+                    f"```{metadata.get('language', 'text')}",
+                    smart_truncate(content, max_length=2000, preserve_structure=True),
+                    "```",
+                    ""
+                ])
+        
+        prompt_parts.extend([
+            "## Instructions",
+            "You are a helpful codebase assistant with deep knowledge of software engineering.",
+            "Based on the user's question and the provided code context:",
+            "",
+            "1. **Answer the question directly and clearly**",
+            "2. **Reference specific code examples** from the context when relevant",
+            "3. **Provide practical insights** about the codebase structure and patterns",
+            "4. **Suggest improvements or alternatives** if applicable",
+            "5. **Be concise but thorough** - focus on what's most helpful",
+            "",
+            "If the context doesn't contain enough information to fully answer the question,",
+            "say so and provide what insights you can based on the available code.",
+            "",
+            "Format your response clearly with sections and code examples where helpful."
+        ])
+        
+        return "\n".join(prompt_parts)

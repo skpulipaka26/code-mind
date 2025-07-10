@@ -1,9 +1,12 @@
 """
-Unified database interface combining vector and graph storage.
+Multi-repository database interface with proper isolation and management.
+This is the main database interface that natively supports multiple repositories.
 """
 
-from typing import List, Dict, Any, Optional, Tuple
+import hashlib
+from typing import List, Dict, Any, Optional, Set
 from dataclasses import dataclass
+from urllib.parse import urlparse
 from storage.vector_store import QdrantVectorStore, VectorSearchResult
 from storage.graph_store import Neo4jGraphStore, GraphNode, GraphRelationship
 from utils.logging import get_logger
@@ -28,62 +31,215 @@ class CodeChunk:
     metadata: Optional[Dict[str, Any]] = None
 
 
-class TurboReviewDatabase:
-    """Unified interface for vector and graph databases."""
+@dataclass
+class RepositoryInfo:
+    """Information about a repository."""
+    repo_url: str
+    repo_name: str
+    owner: str
+    branch: str
+    indexed_at: str
+    chunk_count: int
+    collection_name: str  # Qdrant collection name
+    graph_label: str      # Neo4j label for isolation
+
+
+class CodeMindDatabase:
+    """
+    Main database interface with native multi-repository support.
+    
+    Uses separate Qdrant collections and Neo4j labels for each repository
+    to ensure proper isolation and efficient querying.
+    """
 
     def __init__(
         self,
         # Qdrant config
         qdrant_host: str = "localhost",
         qdrant_port: int = 6333,
-        collection_name: str = "turbo_review",
         # Neo4j config
         neo4j_uri: str = "bolt://localhost:7687",
         neo4j_user: str = "neo4j",
-        neo4j_password: str = "turbo-review-password",
+        neo4j_password: str = "codemind-password",
     ):
-        self.vector_store = QdrantVectorStore(qdrant_host, qdrant_port, collection_name)
-        self.graph_store = Neo4jGraphStore(neo4j_uri, neo4j_user, neo4j_password)
+        self.qdrant_host = qdrant_host
+        self.qdrant_port = qdrant_port
+        self.neo4j_uri = neo4j_uri
+        self.neo4j_user = neo4j_user
+        self.neo4j_password = neo4j_password
+        
+        # Main graph store for repository metadata
+        self.main_graph_store = Neo4jGraphStore(neo4j_uri, neo4j_user, neo4j_password)
+        
+        # Cache for repository-specific stores
+        self._vector_stores: Dict[str, QdrantVectorStore] = {}
+        self._graph_stores: Dict[str, Neo4jGraphStore] = {}
+        
+        # Initialize repository tracking
+        self._ensure_repository_tracking()
 
-    def store_code_chunks(self, chunks: List[CodeChunk]) -> bool:
-        """Store code chunks in both vector and graph databases."""
+    def _ensure_repository_tracking(self):
+        """Create repository tracking infrastructure."""
+        with self.main_graph_store.driver.session() as session:
+            # Create repository tracking constraints and indexes
+            constraints = [
+                "CREATE CONSTRAINT repo_url_unique IF NOT EXISTS FOR (r:Repository) REQUIRE r.repo_url IS UNIQUE",
+                "CREATE INDEX repo_name_index IF NOT EXISTS FOR (r:Repository) ON (r.repo_name)",
+                "CREATE INDEX repo_owner_index IF NOT EXISTS FOR (r:Repository) ON (r.owner)",
+            ]
+            
+            for constraint in constraints:
+                try:
+                    session.run(constraint)
+                except Exception as e:
+                    logger.debug(f"Repository constraint already exists: {e}")
+
+    def _get_repo_identifier(self, repo_url: str) -> str:
+        """Generate a safe identifier for a repository."""
+        # Parse GitHub URL to get owner/repo
+        if "github.com" in repo_url:
+            parsed = urlparse(repo_url)
+            path = parsed.path.strip("/").replace(".git", "")
+            parts = path.split("/")
+            if len(parts) >= 2:
+                owner, repo = parts[0], parts[1]
+                # Create safe identifier
+                identifier = f"{owner}_{repo}".lower()
+                # Replace special characters
+                identifier = "".join(c if c.isalnum() or c == "_" else "_" for c in identifier)
+                return identifier
+        
+        # Fallback: hash the URL
+        return hashlib.sha256(repo_url.encode()).hexdigest()[:16]
+
+    def _get_vector_store(self, repo_url: str) -> QdrantVectorStore:
+        """Get or create vector store for a repository."""
+        repo_id = self._get_repo_identifier(repo_url)
+        collection_name = f"repo_{repo_id}"
+        
+        if collection_name not in self._vector_stores:
+            self._vector_stores[collection_name] = QdrantVectorStore(
+                host=self.qdrant_host,
+                port=self.qdrant_port,
+                collection_name=collection_name
+            )
+            logger.info(f"Created vector store for repository: {collection_name}")
+        
+        return self._vector_stores[collection_name]
+
+    def _get_graph_store(self, repo_url: str) -> Neo4jGraphStore:
+        """Get or create graph store for a repository."""
+        repo_id = self._get_repo_identifier(repo_url)
+        
+        if repo_id not in self._graph_stores:
+            # Use same Neo4j instance but with repository-specific operations
+            self._graph_stores[repo_id] = Neo4jGraphStore(
+                self.neo4j_uri, 
+                self.neo4j_user, 
+                self.neo4j_password
+            )
+            logger.info(f"Created graph store for repository: {repo_id}")
+        
+        return self._graph_stores[repo_id]
+
+    def register_repository(
+        self, 
+        repo_url: str, 
+        repo_name: str, 
+        owner: str, 
+        branch: str = "main"
+    ) -> RepositoryInfo:
+        """Register a new repository in the system."""
+        repo_id = self._get_repo_identifier(repo_url)
+        collection_name = f"repo_{repo_id}"
+        graph_label = f"Repo_{repo_id}"
+        
+        # Store repository metadata
+        with self.main_graph_store.driver.session() as session:
+            query = """
+            MERGE (r:Repository {repo_url: $repo_url})
+            SET r.repo_name = $repo_name,
+                r.owner = $owner,
+                r.branch = $branch,
+                r.repo_id = $repo_id,
+                r.collection_name = $collection_name,
+                r.graph_label = $graph_label,
+                r.indexed_at = datetime(),
+                r.chunk_count = 0
+            RETURN r
+            """
+            
+            session.run(
+                query,
+                repo_url=repo_url,
+                repo_name=repo_name,
+                owner=owner,
+                branch=branch,
+                repo_id=repo_id,
+                collection_name=collection_name,
+                graph_label=graph_label
+            )
+        
+        return RepositoryInfo(
+            repo_url=repo_url,
+            repo_name=repo_name,
+            owner=owner,
+            branch=branch,
+            indexed_at="",  # Will be set when indexing
+            chunk_count=0,
+            collection_name=collection_name,
+            graph_label=graph_label
+        )
+
+    def store_code_chunks(self, repo_url: str, chunks: List[CodeChunk]) -> bool:
+        """Store code chunks for a specific repository."""
         try:
-            # Prepare vector data
+            # Get repository-specific stores
+            vector_store = self._get_vector_store(repo_url)
+            graph_store = self._get_graph_store(repo_url)
+            repo_id = self._get_repo_identifier(repo_url)
+            graph_label = f"Repo_{repo_id}"
+            
+            # Prepare data with repository context
             vector_data = []
             graph_nodes = []
 
             for chunk in chunks:
+                # Add repository context to content hash to avoid conflicts
+                repo_content_hash = f"{repo_id}_{chunk.content_hash}"
+                
                 if chunk.embedding:
                     # Vector store data
-                    vector_data.append(
-                        {
-                            "content_hash": chunk.content_hash,
-                            "vector": chunk.embedding,
-                            "content": chunk.content,
-                            "metadata": {
-                                "chunk_type": chunk.chunk_type,
-                                "file_path": chunk.file_path,
-                                "language": chunk.language,
-                                "name": chunk.name,
-                                "start_line": chunk.start_line,
-                                "end_line": chunk.end_line,
-                                "summary": chunk.summary,
-                                **(chunk.metadata or {}),
-                            },
-                        }
-                    )
+                    vector_data.append({
+                        "content_hash": repo_content_hash,
+                        "vector": chunk.embedding,
+                        "content": chunk.content,
+                        "metadata": {
+                            "chunk_type": chunk.chunk_type,
+                            "file_path": chunk.file_path,
+                            "language": chunk.language,
+                            "name": chunk.name,
+                            "start_line": chunk.start_line,
+                            "end_line": chunk.end_line,
+                            "summary": chunk.summary,
+                            "repo_url": repo_url,
+                            "repo_id": repo_id,
+                            **(chunk.metadata or {}),
+                        },
+                    })
 
-                # Graph store data
-                labels = ["CodeChunk", chunk.chunk_type.title()]
+                # Graph store data with repository label
+                labels = ["CodeChunk", chunk.chunk_type.title(), graph_label]
                 if chunk.chunk_type == "file":
-                    labels = ["File"]
+                    labels = ["File", graph_label]
 
                 graph_nodes.append(
                     GraphNode(
-                        id=chunk.content_hash,
+                        id=repo_content_hash,
                         labels=labels,
                         properties={
-                            "content_hash": chunk.content_hash,
+                            "content_hash": repo_content_hash,
+                            "original_hash": chunk.content_hash,
                             "content": chunk.content,
                             "chunk_type": chunk.chunk_type,
                             "file_path": chunk.file_path,
@@ -92,149 +248,222 @@ class TurboReviewDatabase:
                             "start_line": chunk.start_line,
                             "end_line": chunk.end_line,
                             "summary": chunk.summary,
+                            "repo_url": repo_url,
+                            "repo_id": repo_id,
                             **(chunk.metadata or {}),
                         },
                     )
                 )
 
-            # Store in both databases
+            # Store in repository-specific databases
             vector_success = True
             if vector_data:
-                vector_success = self.vector_store.store_vectors(vector_data)
+                vector_success = vector_store.store_vectors(vector_data)
 
-            graph_success = self.graph_store.store_nodes(graph_nodes)
+            graph_success = graph_store.store_nodes(graph_nodes)
+
+            # Update repository chunk count
+            if vector_success and graph_success:
+                self._update_repository_stats(repo_url, len(chunks))
 
             return vector_success and graph_success
 
         except Exception as e:
-            logger.error(f"Error storing code chunks: {e}")
-            return False
-
-    def store_relationships(
-        self, relationships: List[Tuple[str, str, str, Dict[str, Any]]]
-    ) -> bool:
-        """
-        Store relationships between code chunks.
-
-        Args:
-            relationships: List of (from_hash, to_hash, relationship_type, properties)
-        """
-        try:
-            graph_relationships = [
-                GraphRelationship(
-                    start_node=from_hash,
-                    end_node=to_hash,
-                    type=rel_type,
-                    properties=props,
-                )
-                for from_hash, to_hash, rel_type, props in relationships
-            ]
-
-            return self.graph_store.store_relationships(graph_relationships)
-
-        except Exception as e:
-            logger.error(f"Error storing relationships: {e}")
+            logger.error(f"Error storing code chunks for {repo_url}: {e}")
             return False
 
     def search_similar_code(
         self,
         query_embedding: List[float],
+        repo_url: Optional[str] = None,
         limit: int = 10,
-        filters: Optional[Dict[str, Any]] = None,
         score_threshold: float = 0.7,
     ) -> List[VectorSearchResult]:
-        """Search for similar code using vector similarity."""
-        return self.vector_store.search_similar(
-            query_embedding, limit, filters, score_threshold
-        )
-
-    def get_code_chunk(self, content_hash: str) -> Optional[CodeChunk]:
-        """Get a code chunk by its content hash."""
-        # Try vector store first (has embeddings)
-        vector_result = self.vector_store.get_by_hash(content_hash)
-        if vector_result:
-            return CodeChunk(
-                content_hash=vector_result.content_hash,
-                content=vector_result.content,
-                chunk_type=vector_result.metadata.get("chunk_type", ""),
-                file_path=vector_result.metadata.get("file_path", ""),
-                language=vector_result.metadata.get("language", ""),
-                name=vector_result.metadata.get("name", ""),
-                start_line=vector_result.metadata.get("start_line", 0),
-                end_line=vector_result.metadata.get("end_line", 0),
-                summary=vector_result.metadata.get("summary"),
-                metadata=vector_result.metadata,
+        """Search for similar code, optionally filtered by repository."""
+        if repo_url:
+            # Search in specific repository
+            vector_store = self._get_vector_store(repo_url)
+            return vector_store.search_similar(
+                query_embedding, limit, None, score_threshold
             )
+        else:
+            # Search across all repositories
+            all_results = []
+            
+            # Get all repositories
+            repositories = self.list_repositories()
+            
+            for repo_info in repositories:
+                try:
+                    vector_store = self._get_vector_store(repo_info.repo_url)
+                    results = vector_store.search_similar(
+                        query_embedding, limit, None, score_threshold
+                    )
+                    all_results.extend(results)
+                except Exception as e:
+                    logger.warning(f"Error searching in {repo_info.repo_url}: {e}")
+            
+            # Sort by score and limit
+            all_results.sort(key=lambda x: x.score, reverse=True)
+            return all_results[:limit]
 
-        # Fallback to graph store
-        graph_node = self.graph_store.get_node(content_hash)
-        if graph_node:
-            props = graph_node.properties
-            return CodeChunk(
-                content_hash=props.get("content_hash", ""),
-                content=props.get("content", ""),
-                chunk_type=props.get("chunk_type", ""),
-                file_path=props.get("file_path", ""),
-                language=props.get("language", ""),
-                name=props.get("name", ""),
-                start_line=props.get("start_line", 0),
-                end_line=props.get("end_line", 0),
-                summary=props.get("summary"),
-                metadata=props,
-            )
+    def list_repositories(self) -> List[RepositoryInfo]:
+        """List all registered repositories."""
+        with self.main_graph_store.driver.session() as session:
+            query = """
+            MATCH (r:Repository)
+            RETURN r.repo_url as repo_url,
+                   r.repo_name as repo_name,
+                   r.owner as owner,
+                   r.branch as branch,
+                   r.indexed_at as indexed_at,
+                   r.chunk_count as chunk_count,
+                   r.collection_name as collection_name,
+                   r.graph_label as graph_label
+            ORDER BY r.indexed_at DESC
+            """
+            
+            result = session.run(query)
+            repositories = []
+            
+            for record in result:
+                repositories.append(RepositoryInfo(
+                    repo_url=record["repo_url"],
+                    repo_name=record["repo_name"],
+                    owner=record["owner"],
+                    branch=record["branch"],
+                    indexed_at=str(record["indexed_at"]) if record["indexed_at"] else "",
+                    chunk_count=record["chunk_count"] or 0,
+                    collection_name=record["collection_name"],
+                    graph_label=record["graph_label"]
+                ))
+            
+            return repositories
 
-        return None
+    def delete_repository(self, repo_url: str) -> bool:
+        """Delete a repository and all its data."""
+        try:
+            repo_id = self._get_repo_identifier(repo_url)
+            
+            # Delete from vector store
+            vector_store = self._get_vector_store(repo_url)
+            collection_name = f"repo_{repo_id}"
+            
+            # Delete Qdrant collection
+            try:
+                vector_store.client.delete_collection(collection_name)
+                logger.info(f"Deleted Qdrant collection: {collection_name}")
+            except Exception as e:
+                logger.warning(f"Error deleting Qdrant collection: {e}")
+            
+            # Delete from graph store
+            graph_label = f"Repo_{repo_id}"
+            with self.main_graph_store.driver.session() as session:
+                # Delete all nodes with repository label
+                query = f"MATCH (n:{graph_label}) DETACH DELETE n"
+                session.run(query)
+                
+                # Delete repository metadata
+                query = "MATCH (r:Repository {repo_url: $repo_url}) DELETE r"
+                session.run(query, repo_url=repo_url)
+            
+            # Clean up caches
+            if collection_name in self._vector_stores:
+                del self._vector_stores[collection_name]
+            if repo_id in self._graph_stores:
+                self._graph_stores[repo_id].close()
+                del self._graph_stores[repo_id]
+            
+            logger.info(f"Deleted repository: {repo_url}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error deleting repository {repo_url}: {e}")
+            return False
 
-    def get_related_chunks(
-        self, content_hash: str, relationship_types: Optional[List[str]] = None
-    ) -> List[CodeChunk]:
-        """Get chunks related to a given chunk through graph relationships."""
-        neighbors = self.graph_store.get_neighbors(content_hash, relationship_types)
+    def get_repository_stats(self, repo_url: str) -> Dict[str, Any]:
+        """Get statistics for a specific repository."""
+        try:
+            vector_store = self._get_vector_store(repo_url)
+            repo_id = self._get_repo_identifier(repo_url)
+            
+            # Get vector stats
+            vector_stats = vector_store.get_collection_info()
+            
+            # Get graph stats
+            graph_label = f"Repo_{repo_id}"
+            with self.main_graph_store.driver.session() as session:
+                query = f"""
+                MATCH (n:{graph_label})
+                RETURN count(n) as total_nodes,
+                       count(CASE WHEN 'Function' IN labels(n) THEN 1 END) as functions,
+                       count(CASE WHEN 'Class' IN labels(n) THEN 1 END) as classes,
+                       count(CASE WHEN 'File' IN labels(n) THEN 1 END) as files
+                """
+                result = session.run(query)
+                record = result.single()
+                
+                graph_stats = {
+                    "total_nodes": record["total_nodes"],
+                    "functions": record["functions"],
+                    "classes": record["classes"],
+                    "files": record["files"]
+                }
+            
+            return {
+                "repo_url": repo_url,
+                "vector_stats": vector_stats,
+                "graph_stats": graph_stats
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting stats for {repo_url}: {e}")
+            return {}
 
-        chunks = []
-        for neighbor in neighbors:
-            chunk = self.get_code_chunk(neighbor.id)
-            if chunk:
-                chunks.append(chunk)
-
-        return chunks
-
-    def get_file_chunks(self, file_path: str) -> List[CodeChunk]:
-        """Get all chunks belonging to a file."""
-        nodes = self.graph_store.find_nodes_by_property(
-            "CodeChunk", "file_path", file_path
-        )
-
-        chunks = []
-        for node in nodes:
-            chunk = self.get_code_chunk(node.id)
-            if chunk:
-                chunks.append(chunk)
-
-        return chunks
-
-    def chunk_exists(self, content_hash: str) -> bool:
-        """Check if a chunk exists in the database."""
-        return (
-            self.vector_store.exists(content_hash)
-            or self.graph_store.get_node(content_hash) is not None
-        )
-
-    def get_database_stats(self) -> Dict[str, Any]:
-        """Get statistics about both databases."""
-        vector_stats = self.vector_store.get_collection_info()
-        graph_stats = self.graph_store.get_stats()
-
-        return {"vector_db": vector_stats, "graph_db": graph_stats}
+    def _update_repository_stats(self, repo_url: str, chunk_count: int):
+        """Update repository statistics."""
+        with self.main_graph_store.driver.session() as session:
+            query = """
+            MATCH (r:Repository {repo_url: $repo_url})
+            SET r.chunk_count = r.chunk_count + $chunk_count,
+                r.last_updated = datetime()
+            """
+            session.run(query, repo_url=repo_url, chunk_count=chunk_count)
 
     def health_check(self) -> Dict[str, bool]:
-        """Check health of both databases."""
-        return {
-            "vector_db": self.vector_store.health_check(),
-            "graph_db": self.graph_store.health_check(),
-        }
+        """Check health of the multi-repo database system."""
+        try:
+            # Check main graph store
+            graph_health = self.main_graph_store.health_check()
+            
+            # Check a sample vector store
+            vector_health = True
+            try:
+                from qdrant_client import QdrantClient
+                client = QdrantClient(host=self.qdrant_host, port=self.qdrant_port)
+                client.get_collections()
+            except Exception:
+                vector_health = False
+            
+            return {
+                "graph_db": graph_health,
+                "vector_db": vector_health,
+                "multi_repo_system": graph_health and vector_health
+            }
+            
+        except Exception as e:
+            logger.error(f"Health check failed: {e}")
+            return {"graph_db": False, "vector_db": False, "multi_repo_system": False}
 
     def close(self):
-        """Close database connections."""
-        self.graph_store.close()
-        # Qdrant client doesn't need explicit closing
+        """Close all database connections."""
+        # Close main graph store
+        self.main_graph_store.close()
+        
+        # Close all repository-specific stores
+        for store in self._graph_stores.values():
+            store.close()
+        
+        # Clear caches
+        self._vector_stores.clear()
+        self._graph_stores.clear()

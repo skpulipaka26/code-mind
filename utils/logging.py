@@ -23,15 +23,15 @@ def setup_logging(
     console_handler.setFormatter(formatter)
     root_logger.addHandler(console_handler)
 
-    turbo_logger = logging.getLogger("turbo-review")
-    turbo_logger.setLevel(getattr(logging, level.upper()))
+    codemind_logger = logging.getLogger("codemind")
+    codemind_logger.setLevel(getattr(logging, level.upper()))
 
-    turbo_logger.propagate = True
+    codemind_logger.propagate = True
 
-    return turbo_logger
+    return codemind_logger
 
 
-def get_logger(name: str = "turbo-review") -> logging.Logger:
+def get_logger(name: str = "codemind") -> logging.Logger:
     """Get logger instance."""
     logger = logging.getLogger(name)
     logger.propagate = True

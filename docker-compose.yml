@@ -1,7 +1,7 @@
 services:
   # Vector Database - Qdrant
   qdrant:
-    image: qdrant/qdrant:v1.7.4
+    image: qdrant/qdrant:latest
     container_name: turbo-review-qdrant
     ports:
       - "6333:6333"  # REST API

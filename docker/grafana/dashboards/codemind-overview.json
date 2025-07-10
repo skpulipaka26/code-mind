@@ -1,8 +1,8 @@
 {
   "dashboard": {
     "id": null,
-    "title": "Turbo Review - Overview",
-    "tags": ["turbo-review"],
+    "title": "CodeMind - Overview",
+    "tags": ["codemind"],
     "style": "dark",
     "timezone": "browser",
     "refresh": "5s",
@@ -17,12 +17,12 @@
         "type": "stat",
         "targets": [
           {
-            "expr": "histogram_quantile(0.95, rate(turbo_review_duration_seconds_bucket[5m]))",
+            "expr": "histogram_quantile(0.95, rate(codemind_duration_seconds_bucket[5m]))",
             "legendFormat": "95th percentile",
             "refId": "A"
           },
           {
-            "expr": "histogram_quantile(0.50, rate(turbo_review_duration_seconds_bucket[5m]))",
+            "expr": "histogram_quantile(0.50, rate(codemind_duration_seconds_bucket[5m]))",
             "legendFormat": "50th percentile", 
             "refId": "B"
           }
@@ -46,7 +46,7 @@
         "type": "stat",
         "targets": [
           {
-            "expr": "rate(turbo_api_requests_total[5m])",
+            "expr": "rate(codemind_api_requests_total[5m])",
             "legendFormat": "Requests/sec",
             "refId": "A"
           }
@@ -118,7 +118,7 @@
         "type": "graph",
         "targets": [
           {
-            "expr": "histogram_quantile(0.95, rate(turbo_review_duration_seconds_bucket[5m]))",
+            "expr": "histogram_quantile(0.95, rate(codemind_duration_seconds_bucket[5m]))",
             "legendFormat": "Review p95",
             "refId": "A"
           },
@@ -152,7 +152,7 @@
         "type": "graph",
         "targets": [
           {
-            "expr": "rate(turbo_api_requests_total{status=~\"4..|5..\"}[5m]) / rate(turbo_api_requests_total[5m])",
+            "expr": "rate(codemind_api_requests_total{status=~\"4..|5..\"}[5m]) / rate(codemind_api_requests_total[5m])",
             "legendFormat": "Error rate",
             "refId": "A"
           }

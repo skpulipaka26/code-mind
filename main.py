@@ -1,5 +1,5 @@
 """
-Turbo Review - AI-powered code review system
+CodeMind - AI-powered codebase intelligence platform
 
 Usage:
     python main.py <command> [options]
@@ -13,9 +13,10 @@ Commands:
 import sys
 import asyncio
 
-from cli.config import Config
-from services.review_service import ReviewService
-from storage.database import TurboReviewDatabase
+from config import Config
+from services.codebase_service import CodebaseService
+from services.code_review_service import CodeReviewService
+from storage.database import CodeMindDatabase
 from utils.logging import setup_logging, get_logger
 
 
@@ -25,7 +26,7 @@ async def index_repository(repo_path: str):
     logger = get_logger()
 
     # Initialize database
-    db = TurboReviewDatabase()
+    db = CodeMindDatabase()
 
     # Check database health
     health = db.health_check()
@@ -37,12 +38,14 @@ async def index_repository(repo_path: str):
     logger.info("Database health check passed")
 
     # Initialize service with database
-    service = ReviewService(config, logger, db)
+    service = CodebaseService(config, logger, db)
 
-    success = await service.index_repository(repo_path)
-    if not success:
-        logger.error("Failed to index repository")
+    result = await service.index_repository(repo_path)
+    if not result.success:
+        logger.error(f"Failed to index repository: {result.message}")
         sys.exit(1)
+    
+    logger.info(f"Successfully indexed {result.chunks_indexed} chunks in {result.duration:.2f}s")
 
     # Show stats
     stats = db.get_database_stats()
@@ -55,7 +58,7 @@ async def review_diff(diff_file: str):
     logger = get_logger()
 
     # Initialize database
-    db = TurboReviewDatabase()
+    db = CodeMindDatabase()
 
     # Check database health
     health = db.health_check()
@@ -65,9 +68,13 @@ async def review_diff(diff_file: str):
         sys.exit(1)
 
     # Initialize service with database
-    service = ReviewService(config, logger, db)
+    service = CodeReviewService(config, logger)
 
-    result = await service.review_diff(diff_file)
+    # Read diff content from file
+    with open(diff_file, 'r') as f:
+        diff_content = f.read()
+    
+    result = await service.review_diff(diff_content)
     if result:
         logger.info(
             f"""
@@ -88,7 +95,7 @@ async def health_check():
     logger = get_logger()
 
     try:
-        db = TurboReviewDatabase()
+        db = CodeMindDatabase()
         health = db.health_check()
         stats = db.get_database_stats()
 

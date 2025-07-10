@@ -35,6 +35,12 @@ class Config:
     vector_search_k: int = 10
     rerank_top_k: int = 5
     max_tokens: int = 2048
+    
+    # Rate limiting configuration
+    local_requests_per_minute: int = 300  # Higher limit for local models
+    local_requests_per_second: float = 10.0  # 10 requests per second for local
+    remote_requests_per_minute: int = 20  # Conservative for remote APIs
+    remote_requests_per_second: float = 0.5  # 0.5 requests per second for remote
 
     # Model configurations
     embedding: ModelConfig = field(
@@ -50,8 +56,8 @@ class Config:
     )
     completion: ModelConfig = field(
         default_factory=lambda: ModelConfig(
-            model_name="qwen/qwen-2.5-coder-32b-instruct:free",
-            base_url="https://openrouter.ai/api/v1",
+            model_name="qwen/qwen2.5-coder-7b-instruct",
+            base_url="http://127.0.0.1:1234/v1",
         )
     )
 
