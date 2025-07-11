@@ -48,8 +48,8 @@ async def index_repository(repo_path: str):
     logger.info(f"Successfully indexed {result.chunks_indexed} chunks in {result.duration:.2f}s")
 
     # Show stats
-    stats = db.get_database_stats()
-    logger.info(f"Indexing complete. Database stats: {stats}")
+    repositories = db.list_repositories()
+    logger.info(f"Indexing complete. Total repositories: {len(repositories)}")
 
 
 async def review_diff(diff_file: str):
@@ -97,12 +97,12 @@ async def health_check():
     try:
         db = CodeMindDatabase()
         health = db.health_check()
-        stats = db.get_database_stats()
+        repositories = db.list_repositories()
 
         logger.info("=== Database Health Check ===")
         logger.info(f"Vector DB (Qdrant): {'✅' if health['vector_db'] else '❌'}")
         logger.info(f"Graph DB (Neo4j): {'✅' if health['graph_db'] else '❌'}")
-        logger.info(f"Database Stats: {stats}")
+        logger.info(f"Total repositories: {len(repositories)}")
 
         if all(health.values()):
             logger.info("All databases are healthy! 🎉")

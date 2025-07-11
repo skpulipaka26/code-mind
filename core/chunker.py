@@ -4,7 +4,7 @@ from pathlib import Path
 from core.generic_extractor import GenericChunkExtractor
 from core.chunk_types import CodeChunk
 from core.language_registry import get_language_registry
-from utils.gitignore import GitignoreParser, should_ignore_by_default_patterns
+from utils.gitignore import GitignoreParser
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -13,8 +13,8 @@ logger = get_logger(__name__)
 class TreeSitterChunker:
     """Extract code chunks using Tree-sitter with dynamic language support."""
 
-    def __init__(self):
-        self.extractor = GenericChunkExtractor()
+    def __init__(self, chunking_config=None):
+        self.extractor = GenericChunkExtractor(chunking_config)
         self.registry = get_language_registry()
         self.gitignore_parser = None
 
@@ -28,8 +28,7 @@ class TreeSitterChunker:
         repo_path = Path(repo_path)
 
         # Initialize gitignore parser for this repository
-        # Use default patterns as fallback when no .gitignore exists
-        self.gitignore_parser = GitignoreParser(str(repo_path), use_default_patterns=True)
+        self.gitignore_parser = GitignoreParser(str(repo_path))
         logger.debug(
             f"Loaded {len(self.gitignore_parser.get_patterns())} .gitignore patterns"
         )
@@ -44,7 +43,7 @@ class TreeSitterChunker:
                 logger.debug(f"Skipping file due to .gitignore: {file_path}")
                 continue
 
-            # Check other skip conditions
+            # Check other skip conditions (keep this for additional safety checks)
             if self._should_skip(file_path):
                 continue
 
@@ -78,13 +77,23 @@ class TreeSitterChunker:
         return self.extractor.is_supported_file(file_path)
 
     def _should_skip(self, file_path: Path) -> bool:
-        """Check if file should be skipped based on default patterns (safety net for missing .gitignore)."""
+        """Additional safety checks for files that should be skipped."""
+        # Skip very large files (> 1MB) to avoid processing issues
         try:
-            if hasattr(self, 'gitignore_parser') and self.gitignore_parser:
-                rel_path = file_path.relative_to(self.gitignore_parser.repo_path)
-                return should_ignore_by_default_patterns(str(rel_path))
-        except (ValueError, AttributeError):
-            pass
-        
-        # Fallback to using the full path
-        return should_ignore_by_default_patterns(str(file_path))
+            if file_path.stat().st_size > 1024 * 1024:
+                logger.debug(f"Skipping large file: {file_path}")
+                return True
+        except (OSError, FileNotFoundError):
+            return True
+
+        # Skip binary files by checking for null bytes in first 1024 bytes
+        try:
+            with open(file_path, "rb") as f:
+                chunk = f.read(1024)
+                if b"\x00" in chunk:
+                    logger.debug(f"Skipping binary file: {file_path}")
+                    return True
+        except (OSError, PermissionError):
+            return True
+
+        return False

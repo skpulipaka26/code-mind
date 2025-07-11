@@ -36,6 +36,11 @@ class Config:
     rerank_top_k: int = 5
     max_tokens: int = 2048
     
+    # Chunking configuration
+    max_chunk_size: int = 1000  # lines per chunk
+    min_chunk_size: int = 50    # minimum lines per chunk
+    chunk_overlap_size: int = 50  # overlap between chunks
+    
     # Rate limiting configuration
     local_requests_per_minute: int = 300  # Higher limit for local models
     local_requests_per_second: float = 10.0  # 10 requests per second for local
@@ -56,8 +61,8 @@ class Config:
     )
     completion: ModelConfig = field(
         default_factory=lambda: ModelConfig(
-            model_name="qwen/qwen2.5-coder-7b-instruct",
-            base_url="http://127.0.0.1:1234/v1",
+            model_name="devstral-medium-latest",
+            base_url="https://api.mistral.ai/v1",
         )
     )
 

@@ -58,6 +58,7 @@ dependencies = [
     "tree-sitter-ruby>=0.23.1",
     "tree-sitter-scala>=0.24.0",
     "tree-sitter-jsdoc>=0.23.2",
+    "pathspec>=0.12.1",
 ]
 
 [project.optional-dependencies]

@@ -45,40 +45,8 @@ class LanguageRegistry:
                 extensions=[".py", ".pyi", ".pyw"],
                 tree_sitter_module="tree_sitter_python",
                 node_types={
-                    "function": ["function_definition", "async_function_definition"],
-                    "class": ["class_definition"],
-                    "import": ["import_statement", "import_from_statement"],
-                    "variable": ["assignment", "augmented_assignment"],
-                },
-                comment_patterns=["#"],
-                string_patterns=['"""', "'''", '"', "'"],
-                lsp_language_id="python"
-            ),
-            "javascript": LanguageConfig(
-                name="javascript",
-                extensions=[".js", ".jsx", ".mjs", ".cjs"],
-                tree_sitter_module="tree_sitter_javascript",
-                node_types={
                     "function": ["function_declaration", "function_expression", "arrow_function", "method_definition"],
                     "class": ["class_declaration"],
-                    "import": ["import_statement", "export_statement"],
-                    "variable": ["variable_declaration", "lexical_declaration"],
-                },
-                comment_patterns=["//", "/*"],
-                string_patterns=['"', "'", "`"],
-                lsp_language_id="javascript"
-            ),
-            "typescript": LanguageConfig(
-                name="typescript",
-                extensions=[".ts", ".tsx", ".d.ts"],
-                tree_sitter_module="tree_sitter_typescript",
-                node_types={
-                    "function": ["function_declaration", "function_expression", "arrow_function", "method_definition"],
-                    "class": ["class_declaration"],
-                    "import": ["import_statement", "export_statement"],
-                    "variable": ["variable_declaration", "lexical_declaration"],
-                    "interface": ["interface_declaration"],
-                    "type": ["type_alias_declaration"],
                 },
                 comment_patterns=["//", "/*"],
                 string_patterns=['"', "'", "`"],
@@ -91,8 +59,6 @@ class LanguageRegistry:
                 node_types={
                     "function": ["method_declaration", "constructor_declaration"],
                     "class": ["class_declaration", "interface_declaration", "enum_declaration"],
-                    "import": ["import_declaration", "package_declaration"],
-                    "variable": ["variable_declarator", "field_declaration"],
                 },
                 comment_patterns=["//", "/*"],
                 string_patterns=['"'],

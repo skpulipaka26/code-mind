@@ -26,8 +26,8 @@ class ChangedChunk:
 class DiffProcessor:
     """Process PR diffs and extract changed code chunks."""
 
-    def __init__(self):
-        self.chunker = TreeSitterChunker()
+    def __init__(self, chunking_config=None):
+        self.chunker = TreeSitterChunker(chunking_config)
 
     def process_diff(self, diff_content: str) -> List[DiffHunk]:
         """Parse unified diff into hunks."""
