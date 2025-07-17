@@ -245,11 +245,20 @@ class CodebaseService:
                         batch_size = self.config.embedding_batch_size
                         for i in range(0, len(contents), batch_size):
                             batch = contents[i : i + batch_size]
-                            batch_embeddings = await client.embed_batch(batch)
-                            embeddings.extend(batch_embeddings)
-                            self.logger.debug(
-                                f"Generated {len(embeddings)} embeddings so far."
-                            )
+                            try:
+                                batch_embeddings = await client.embed_batch(batch)
+                                embeddings.extend(batch_embeddings)
+                                self.logger.debug(
+                                    f"Generated {len(embeddings)} embeddings so far."
+                                )
+                            except Exception as e:
+                                self.logger.error(f"Failed to generate embeddings for batch {i//batch_size + 1}: {e}")
+                                # If it's a connection error, provide helpful guidance
+                                if "connection" in str(e).lower() or "network" in str(e).lower():
+                                    self.logger.error("This appears to be a network/connection issue.")
+                                    self.logger.error("If using HuggingFace models, ensure you have internet access for model download.")
+                                    self.logger.error("Consider using a local embedding service or OpenAI-compatible API instead.")
+                                raise e
 
                         embedding_duration = time.time() - embedding_start
                         self.telemetry.record_embedding_duration(

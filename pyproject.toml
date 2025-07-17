@@ -59,6 +59,10 @@ dependencies = [
     "tree-sitter-scala>=0.24.0",
     "tree-sitter-jsdoc>=0.23.2",
     "pathspec>=0.12.1",
+    "torch>=2.0.0",
+    "transformers>=4.30.0",
+    "sentence-transformers>=2.2.0",
+    "accelerate>=1.8.1",
 ]
 
 [project.optional-dependencies]

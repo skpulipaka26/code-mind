@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
 @dataclass
 class ModelConfig:
     model_name: str
@@ -23,7 +24,7 @@ class Config:
     max_chunks: int = 20
     chunk_overlap: int = 5
     review_temperature: float = 0.1
-    vector_dimension: int = 1024
+    vector_dimension: int = 768
     vector_db_path: str = "vector_db"
 
     # Logging configuration
@@ -31,16 +32,16 @@ class Config:
     log_file: str = "review_output.log"
 
     # Processing configuration
-    embedding_batch_size: int = 5  # Reduced from 10 to avoid rate limits
-    vector_search_k: int = 10
-    rerank_top_k: int = 5
+    embedding_batch_size: int = 32
+    vector_search_k: int = 20
+    rerank_top_k: int = 10
     max_tokens: int = 2048
-    
+
     # Chunking configuration
-    max_chunk_size: int = 1000  # lines per chunk
-    min_chunk_size: int = 50    # minimum lines per chunk
-    chunk_overlap_size: int = 50  # overlap between chunks
-    
+    max_chunk_size: int = 100  # lines per chunk (reduced for 512 token models)
+    min_chunk_size: int = 10  # minimum lines per chunk
+    chunk_overlap_size: int = 10  # overlap between chunks
+
     # Rate limiting configuration
     local_requests_per_minute: int = 300  # Higher limit for local models
     local_requests_per_second: float = 10.0  # 10 requests per second for local
@@ -50,7 +51,7 @@ class Config:
     # Model configurations
     embedding: ModelConfig = field(
         default_factory=lambda: ModelConfig(
-            model_name="qwen/qwen3-embedding-0.6b", base_url="http://127.0.0.1:1234/v1"
+            model_name="microsoft/unixcoder-base", base_url="huggingface"
         )
     )
     rerank: ModelConfig = field(

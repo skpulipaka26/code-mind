@@ -10,8 +10,12 @@ Commands:
     health                - Check database health
 """
 
+import os
 import sys
 import asyncio
+
+# Suppress tokenizers parallelism warning
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 from config import Config
 from services.codebase_service import CodebaseService

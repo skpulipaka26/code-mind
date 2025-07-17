@@ -75,12 +75,24 @@ class RepositoryManager:
             logger.info(
                 f"Cloning {owner}/{repo_name} (branch: {branch}) to {clone_path}"
             )
-            repo = git.Repo.clone_from(
-                clone_url,
-                clone_path,
-                branch=branch,
-                depth=1,  # Shallow clone for faster cloning
-            )
+            try:
+                repo = git.Repo.clone_from(
+                    clone_url,
+                    clone_path,
+                    branch=branch,
+                    depth=1,  # Shallow clone for faster cloning
+                )
+            except git.exc.GitCommandError as e:
+                if "Remote branch" in str(e) and "not found" in str(e):
+                    # Try to clone without specifying branch (uses default)
+                    logger.info(f"Branch '{branch}' not found, trying default branch")
+                    repo = git.Repo.clone_from(
+                        clone_url,
+                        clone_path,
+                        depth=1,  # Shallow clone for faster cloning
+                    )
+                else:
+                    raise
 
             # Track cloned repository
             self.cloned_repos[repo_url] = clone_path

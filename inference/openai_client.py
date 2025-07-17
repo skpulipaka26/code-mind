@@ -8,6 +8,13 @@ from monitoring.telemetry import get_telemetry
 from utils.logging import get_logger
 from config import ModelConfig
 
+# Import HuggingFace client for direct model support
+try:
+    from inference.huggingface_client import create_huggingface_client
+    HF_AVAILABLE = True
+except ImportError:
+    HF_AVAILABLE = False
+
 logger = get_logger(__name__)
 
 
@@ -219,6 +226,18 @@ class LLMClient:
         async with self._semaphore:
             telemetry = get_telemetry()
             model_config = getattr(self.config, "embedding", None)
+            
+            # Check if we should use HuggingFace client
+            if (model_config.base_url == "huggingface" or 
+                "huggingface" in model_config.base_url.lower()):
+                if not HF_AVAILABLE:
+                    raise ImportError("HuggingFace client not available. Install transformers and torch.")
+                
+                # Use HuggingFace client
+                async with create_huggingface_client(model_config.model_name) as hf_client:
+                    return await hf_client.embed(text)
+            
+            # Use OpenAI-compatible client
             client = self._get_client_for_model(model_config)
 
             operation_name = (
@@ -261,6 +280,18 @@ class LLMClient:
         async with self._semaphore:
             telemetry = get_telemetry()
             model_config = getattr(self.config, "embedding", None)
+            
+            # Check if we should use HuggingFace client
+            if (model_config.base_url == "huggingface" or 
+                "huggingface" in model_config.base_url.lower()):
+                if not HF_AVAILABLE:
+                    raise ImportError("HuggingFace client not available. Install transformers and torch.")
+                
+                # Use HuggingFace client
+                async with create_huggingface_client(model_config.model_name) as hf_client:
+                    return await hf_client.embed_batch(texts)
+            
+            # Use OpenAI-compatible client
             client = self._get_client_for_model(model_config)
 
             operation_name = (

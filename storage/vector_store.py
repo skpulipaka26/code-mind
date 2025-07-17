@@ -30,7 +30,7 @@ class QdrantVectorStore:
     def __init__(self, host: str = "localhost", port: int = 6333, collection_name: str = "turbo_review"):
         self.client = QdrantClient(host=host, port=port)
         self.collection_name = collection_name
-        self.vector_size = 1024  # For qwen3-embedding-0.6b model
+        self.vector_size = 768  # For microsoft/unixcoder-base model
         
         # Create collection if it doesn't exist
         self._ensure_collection()

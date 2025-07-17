@@ -36,7 +36,7 @@ class Neo4jGraphStore:
         self,
         uri: str = "bolt://localhost:7687",
         user: str = "neo4j",
-        password: str = "password",
+        password: str = "turbo-review-password",
     ):
         self.driver = GraphDatabase.driver(uri, auth=(user, password))
         self._ensure_constraints()
