@@ -326,9 +326,9 @@ class CodeMindDatabase:
                         repo_name=record["repo_name"],
                         owner=record["owner"],
                         branch=record["branch"],
-                        indexed_at=str(record["indexed_at"])
-                        if record["indexed_at"]
-                        else "",
+                        indexed_at=(
+                            str(record["indexed_at"]) if record["indexed_at"] else ""
+                        ),
                         chunk_count=record["chunk_count"] or 0,
                         collection_name=record["collection_name"],
                         graph_label=record["graph_label"],

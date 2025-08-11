@@ -79,7 +79,7 @@ class HuggingFaceClient:
                     trust_remote_code=True,
                     torch_dtype=torch_dtype,
                     force_download=False,
-                    device_map=None
+                    device_map=None,
                 ).to(self.device)
 
                 load_time = time.time() - start_time
@@ -122,7 +122,7 @@ class HuggingFaceClient:
         try:
             # Use conservative max_length for UniXcoder (512 tokens)
             actual_max_length = 512
-            
+
             # Tokenize inputs
             encoded_input = self.tokenizer(
                 texts,
@@ -197,11 +197,11 @@ class InstructionEmbeddingClient(HuggingFaceClient):
         """Get appropriate max length based on model name."""
         model_name_lower = self.model_name.lower()
         if "bge" in model_name_lower:
-            return 8192   # BGE models typically 8k
+            return 8192  # BGE models typically 8k
         elif "code" in model_name_lower:
             return 16384  # Code models often support longer context
         else:
-            return 8192   # Safe default
+            return 8192  # Safe default
 
     async def embed_with_instruction(
         self, text: str, instruction: str = None
@@ -225,7 +225,7 @@ class InstructionEmbeddingClient(HuggingFaceClient):
     def _model_supports_instructions(self) -> bool:
         """Check if the model supports instruction-based embedding."""
         model_name_lower = self.model_name.lower()
-        return ("instruct" in model_name_lower or "sfr" in model_name_lower)
+        return "instruct" in model_name_lower or "sfr" in model_name_lower
 
     async def embed_query(self, query: str) -> List[float]:
         """Embed a search query with default instruction if supported."""

@@ -36,10 +36,6 @@ exporters:
     const_labels:
       service: turbo-review
 
-  # Export logs to Loki
-  loki:
-    endpoint: http://loki:3100/loki/api/v1/push
-
   debug:
     verbosity: detailed
 
@@ -66,4 +62,4 @@ service:
     logs:
       receivers: [otlp]
       processors: [batch, resource]
-      exporters: [loki, debug]
+      exporters: [debug]

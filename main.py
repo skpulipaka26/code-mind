@@ -48,8 +48,10 @@ async def index_repository(repo_path: str):
     if not result.success:
         logger.error(f"Failed to index repository: {result.message}")
         sys.exit(1)
-    
-    logger.info(f"Successfully indexed {result.chunks_indexed} chunks in {result.duration:.2f}s")
+
+    logger.info(
+        f"Successfully indexed {result.chunks_indexed} chunks in {result.duration:.2f}s"
+    )
 
     # Show stats
     repositories = db.list_repositories()
@@ -75,9 +77,9 @@ async def review_diff(diff_file: str):
     service = CodeReviewService(config, logger)
 
     # Read diff content from file
-    with open(diff_file, 'r') as f:
+    with open(diff_file, "r") as f:
         diff_content = f.read()
-    
+
     result = await service.review_diff(diff_content)
     if result:
         logger.info(

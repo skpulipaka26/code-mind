@@ -200,9 +200,9 @@ class CodebaseService:
             with self.telemetry.trace_operation("extract_chunks"):
                 # Create chunking config from main config
                 chunking_config = ChunkingConfig(
-                    max_chunk_size=getattr(self.config, 'max_chunk_size', 1000),
-                    min_chunk_size=getattr(self.config, 'min_chunk_size', 50),
-                    overlap_size=getattr(self.config, 'chunk_overlap_size', 50)
+                    max_chunk_size=getattr(self.config, "max_chunk_size", 1000),
+                    min_chunk_size=getattr(self.config, "min_chunk_size", 50),
+                    overlap_size=getattr(self.config, "chunk_overlap_size", 50),
                 )
                 chunker = TreeSitterChunker(chunking_config)
                 path = Path(actual_path)
@@ -252,12 +252,23 @@ class CodebaseService:
                                     f"Generated {len(embeddings)} embeddings so far."
                                 )
                             except Exception as e:
-                                self.logger.error(f"Failed to generate embeddings for batch {i//batch_size + 1}: {e}")
+                                self.logger.error(
+                                    f"Failed to generate embeddings for batch {i//batch_size + 1}: {e}"
+                                )
                                 # If it's a connection error, provide helpful guidance
-                                if "connection" in str(e).lower() or "network" in str(e).lower():
-                                    self.logger.error("This appears to be a network/connection issue.")
-                                    self.logger.error("If using HuggingFace models, ensure you have internet access for model download.")
-                                    self.logger.error("Consider using a local embedding service or OpenAI-compatible API instead.")
+                                if (
+                                    "connection" in str(e).lower()
+                                    or "network" in str(e).lower()
+                                ):
+                                    self.logger.error(
+                                        "This appears to be a network/connection issue."
+                                    )
+                                    self.logger.error(
+                                        "If using HuggingFace models, ensure you have internet access for model download."
+                                    )
+                                    self.logger.error(
+                                        "Consider using a local embedding service or OpenAI-compatible API instead."
+                                    )
                                 raise e
 
                         embedding_duration = time.time() - embedding_start
@@ -454,9 +465,11 @@ class CodebaseService:
                     chunk_data = result.result
                     context_chunks.append(
                         {
-                            "content": chunk_data.content[:500] + "..."
-                            if len(chunk_data.content) > 500
-                            else chunk_data.content,
+                            "content": (
+                                chunk_data.content[:500] + "..."
+                                if len(chunk_data.content) > 500
+                                else chunk_data.content
+                            ),
                             "file_path": chunk_data.metadata.get("file_path", ""),
                             "chunk_type": chunk_data.metadata.get("chunk_type", ""),
                             "name": chunk_data.metadata.get("name", ""),

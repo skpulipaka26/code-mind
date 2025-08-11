@@ -30,5 +30,3 @@ class KnowledgeGraph:
             for node, data in self.graph.nodes(data=True)
             if data.get("type") == node_type
         ]
-
-

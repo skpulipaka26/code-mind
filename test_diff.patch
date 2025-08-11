@@ -1,0 +1,25 @@
+diff --git a/example.py b/example.py
+index 1234567..abcdefg 100644
+--- a/example.py
++++ b/example.py
+@@ -1,10 +1,15 @@
+ def calculate_total(items):
+     """Calculate the total price of items."""
+-    total = 0
+-    for item in items:
+-        total += item['price']
+-    return total
++    if not items:
++        return 0
++    
++    # Use sum with generator expression for better performance
++    return sum(item.get('price', 0) for item in items)
+ 
+ def process_order(order_data):
+     """Process an order."""
+-    print(f"Processing order: {order_data}")
++    if not order_data:
++        raise ValueError("Order data cannot be empty")
++    
++    print(f"Processing order ID: {order_data.get('id', 'Unknown')}")
++    return calculate_total(order_data.get('items', []))

@@ -18,108 +18,104 @@ async def handle_github_webhook(
     payload: dict,
     app_request: Request,
     x_github_event: Optional[str] = Header(None),
-    x_hub_signature_256: Optional[str] = Header(None)
+    x_hub_signature_256: Optional[str] = Header(None),
 ):
     """
     GitHub webhook endpoint for automated PR reviews.
-    
+
     This endpoint receives GitHub webhook events and automatically
     reviews pull requests when they are opened or updated.
     """
     try:
         logger.info(f"Received GitHub webhook: {x_github_event}")
-        
+
         # Verify webhook signature (optional but recommended for production)
         # if not verify_github_signature(payload, x_hub_signature_256):
         #     raise HTTPException(status_code=401, detail="Invalid signature")
-        
+
         # Only handle pull request events
         if x_github_event != "pull_request":
             return GitHubWebhookResponse(
                 success=True,
                 message=f"Ignored event type: {x_github_event}",
-                review_posted=False
+                review_posted=False,
             )
-        
+
         action = payload.get("action")
         if action not in ["opened", "synchronize", "reopened"]:
             return GitHubWebhookResponse(
                 success=True,
                 message=f"Ignored PR action: {action}",
-                review_posted=False
+                review_posted=False,
             )
-        
+
         # Extract PR information
         pr = payload.get("pull_request", {})
         repo = payload.get("repository", {})
-        
+
         pr_number = pr.get("number")
         repo_name = repo.get("full_name")
         repo_url = repo.get("html_url")  # GitHub repository URL
         diff_url = pr.get("diff_url")
-        
+
         if not all([pr_number, repo_name, repo_url, diff_url]):
             raise HTTPException(
-                status_code=400,
-                detail="Missing required PR information"
+                status_code=400, detail="Missing required PR information"
             )
-        
+
         logger.info(f"Processing PR #{pr_number} in {repo_name}")
-        
+
         # Get config and database from app state
         config = app_request.app.state.config
         database = app_request.app.state.database
-        
+
         # Download diff content
         import httpx
+
         async with httpx.AsyncClient() as client:
             response = await client.get(diff_url)
             if response.status_code != 200:
                 raise HTTPException(
                     status_code=500,
-                    detail=f"Failed to download diff: {response.status_code}"
+                    detail=f"Failed to download diff: {response.status_code}",
                 )
             diff_content = response.text
-        
+
         # Create review service and review the diff
         review_service = CodeReviewService(config=config)
-        
+
         # Review the diff with repository context
         result = await review_service.review_diff(
-            diff_content=diff_content,
-            repo_url=repo_url,
-            context_enabled=True
+            diff_content=diff_content, repo_url=repo_url, context_enabled=True
         )
-            
+
         if result:
             # Post review as GitHub comment (requires GitHub token)
             review_posted = await post_github_review(
                 repo_name, pr_number, result.review_content
             )
-            
+
             return GitHubWebhookResponse(
                 success=True,
                 message=f"Review generated for PR #{pr_number}",
-                review_posted=review_posted
+                review_posted=review_posted,
             )
         else:
-            raise HTTPException(
-                status_code=500,
-                detail="Failed to generate review"
-            )
-            
+            raise HTTPException(status_code=500, detail="Failed to generate review")
+
     except Exception as e:
         logger.error(f"Error processing GitHub webhook: {e}")
         raise HTTPException(
-            status_code=500,
-            detail=f"Error processing webhook: {str(e)}"
+            status_code=500, detail=f"Error processing webhook: {str(e)}"
         )
 
 
-async def post_github_review(repo_name: str, pr_number: int, review_content: str) -> bool:
+async def post_github_review(
+    repo_name: str, pr_number: int, review_content: str
+) -> bool:
     """
     Post review as a GitHub PR comment.
-    
+
     This function requires a GitHub token with appropriate permissions.
     """
     try:
@@ -127,9 +123,9 @@ async def post_github_review(repo_name: str, pr_number: int, review_content: str
         if not github_token:
             logger.warning("No GitHub token configured, cannot post review")
             return False
-        
+
         import httpx
-        
+
         # Format review content
         formatted_review = f"""## 🤖 AI Code Review
 
@@ -138,25 +134,27 @@ async def post_github_review(repo_name: str, pr_number: int, review_content: str
 ---
 *Generated by Turbo Review*
 """
-        
+
         # Post comment to GitHub
         url = f"https://api.github.com/repos/{repo_name}/issues/{pr_number}/comments"
         headers = {
             "Authorization": f"token {github_token}",
-            "Accept": "application/vnd.github.v3+json"
+            "Accept": "application/vnd.github.v3+json",
         }
         data = {"body": formatted_review}
-        
+
         async with httpx.AsyncClient() as client:
             response = await client.post(url, headers=headers, json=data)
-            
+
             if response.status_code == 201:
                 logger.info(f"Successfully posted review to PR #{pr_number}")
                 return True
             else:
-                logger.error(f"Failed to post GitHub comment: {response.status_code} - {response.text}")
+                logger.error(
+                    f"Failed to post GitHub comment: {response.status_code} - {response.text}"
+                )
                 return False
-                
+
     except Exception as e:
         logger.error(f"Error posting GitHub review: {e}")
         return False
@@ -168,7 +166,4 @@ async def github_status():
     Get GitHub integration status.
     """
     github_token = os.getenv("GITHUB_TOKEN")
-    return {
-        "github_token_configured": bool(github_token),
-        "webhook_ready": True
-    }
+    return {"github_token_configured": bool(github_token), "webhook_ready": True}

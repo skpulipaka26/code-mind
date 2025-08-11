@@ -210,16 +210,22 @@ class LSPResolver:
         if not config:
             logger.debug(f"No config available for language: {language}")
             return
-        
+
         # Collect all node types that might indicate dependencies
         target_types = set()
         for node_type_list in config.node_types.values():
             target_types.update(node_type_list)
-        
+
         # Add common dependency-related node types
         common_dependency_types = {
-            "import_statement", "import_from_statement", "call", "call_expression",
-            "attribute", "member_expression", "identifier", "new_expression"
+            "import_statement",
+            "import_from_statement",
+            "call",
+            "call_expression",
+            "attribute",
+            "member_expression",
+            "identifier",
+            "new_expression",
         }
         target_types.update(common_dependency_types)
 
@@ -305,35 +311,43 @@ class LSPResolver:
             # Generic identifier extraction - works for most languages
             if node.type == "identifier":
                 return node.text.decode("utf8")
-            
+
             # Import/require statements - look for string literals or identifiers
             if "import" in node.type or "require" in node.type or "use" in node.type:
                 for child in node.children:
                     if child.type in ["string", "string_literal"]:
                         return child.text.decode("utf8").strip("\"'")
-                    elif child.type in ["dotted_name", "identifier", "scoped_identifier"]:
+                    elif child.type in [
+                        "dotted_name",
+                        "identifier",
+                        "scoped_identifier",
+                    ]:
                         return child.text.decode("utf8")
-            
+
             # Function/method calls - extract the callable name
             if "call" in node.type:
                 if node.children:
                     first_child = node.children[0]
                     if first_child.type == "identifier":
                         return first_child.text.decode("utf8")
-                    elif hasattr(first_child, 'children') and first_child.children:
+                    elif hasattr(first_child, "children") and first_child.children:
                         # Handle member access like obj.method()
-                        return first_child.children[-1].text.decode("utf8") if first_child.children else None
-            
+                        return (
+                            first_child.children[-1].text.decode("utf8")
+                            if first_child.children
+                            else None
+                        )
+
             # Member/attribute access - get the property name
             if node.type in ["attribute", "member_expression", "field_expression"]:
                 if len(node.children) >= 2:
                     # Usually the last child is the member name
                     return node.children[-1].text.decode("utf8")
-            
+
             # New expressions - get the type being instantiated
             if "new" in node.type and node.children:
                 return node.children[0].text.decode("utf8")
-            
+
             # For other node types, try to extract the first meaningful identifier
             for child in node.children:
                 if child.type == "identifier":

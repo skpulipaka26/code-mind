@@ -8,14 +8,20 @@ from pydantic import BaseModel, Field
 
 # Request Models
 class IndexRepositoryRequest(BaseModel):
-    repo_url: str = Field(..., description="GitHub repository URL (e.g., https://github.com/owner/repo)")
+    repo_url: str = Field(
+        ..., description="GitHub repository URL (e.g., https://github.com/owner/repo)"
+    )
     branch: Optional[str] = Field("main", description="Branch to clone (default: main)")
-    access_token: Optional[str] = Field(None, description="GitHub access token for private repos")
+    access_token: Optional[str] = Field(
+        None, description="GitHub access token for private repos"
+    )
 
 
 class ReviewDiffRequest(BaseModel):
     diff_content: str = Field(..., description="Diff content to review")
-    repo_url: Optional[str] = Field(None, description="Optional GitHub repository URL for context")
+    repo_url: Optional[str] = Field(
+        None, description="Optional GitHub repository URL for context"
+    )
 
 
 class QuickReviewRequest(BaseModel):
@@ -24,7 +30,9 @@ class QuickReviewRequest(BaseModel):
 
 class ChatQueryRequest(BaseModel):
     query: str = Field(..., description="Question about the codebase")
-    repo_url: Optional[str] = Field(None, description="Optional GitHub repository URL filter")
+    repo_url: Optional[str] = Field(
+        None, description="Optional GitHub repository URL filter"
+    )
     max_results: int = Field(10, description="Maximum number of context chunks to use")
 
 
