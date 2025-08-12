@@ -96,10 +96,18 @@ class LSPResolver:
                 f"Tree-sitter + LSP analysis complete: {len(self.dependencies)} dependencies found across {files_analyzed} files"
             )
 
+            # Detect and analyze circular dependencies
+            cycle_analysis = self.get_cycle_analysis()
+            if cycle_analysis["has_cycles"]:
+                logger.warning(
+                    f"Found {cycle_analysis['cycle_count']} circular dependencies affecting {cycle_analysis['affected_chunk_count']} chunks"
+                )
+
             return {
                 "symbols": total_symbols,
                 "dependencies": len(self.dependencies),
                 "files_analyzed": files_analyzed,
+                "cycles": cycle_analysis,
             }
 
         except Exception as e:
@@ -108,6 +116,12 @@ class LSPResolver:
                 "symbols": 0,
                 "dependencies": len(self.dependencies),
                 "files_analyzed": 0,
+                "cycles": {
+                    "has_cycles": False,
+                    "cycle_count": 0,
+                    "cycles": [],
+                    "affected_chunks": [],
+                },
             }
 
     async def _analyze_language(
@@ -316,20 +330,28 @@ class LSPResolver:
             if "import" in node.type or "require" in node.type or "use" in node.type:
                 for child in node.children:
                     if child.type in ["string", "string_literal"]:
-                        return child.text.decode("utf8").strip("\"'")
+                        return (
+                            child.text.decode("utf8").strip("\"'")
+                            if child.text
+                            else None
+                        )
                     elif child.type in [
                         "dotted_name",
                         "identifier",
                         "scoped_identifier",
                     ]:
-                        return child.text.decode("utf8")
+                        return child.text.decode("utf8") if child.text else None
 
             # Function/method calls - extract the callable name
             if "call" in node.type:
                 if node.children:
                     first_child = node.children[0]
                     if first_child.type == "identifier":
-                        return first_child.text.decode("utf8")
+                        return (
+                            first_child.text.decode("utf8")
+                            if first_child.text
+                            else None
+                        )
                     elif hasattr(first_child, "children") and first_child.children:
                         # Handle member access like obj.method()
                         return (
@@ -516,6 +538,105 @@ class LSPResolver:
             "uses": len([d for d in self.dependencies if d.dependency_type == "uses"]),
         }
         return stats
+
+    def _build_adjacency_list(self) -> Dict[str, List[str]]:
+        """Build an adjacency list representation of the dependency graph."""
+        graph = {}
+        for dep in self.dependencies:
+            if dep.source_chunk not in graph:
+                graph[dep.source_chunk] = []
+            if dep.target_chunk not in graph[dep.source_chunk]:
+                graph[dep.source_chunk].append(dep.target_chunk)
+        return graph
+
+    def detect_cycles(self) -> List[List[str]]:
+        """
+        Detect all cycles in the dependency graph using DFS with recursion stack.
+        Returns a list of cycles, where each cycle is a list of chunk IDs.
+        """
+        visited = set()
+        rec_stack = set()
+        cycles = []
+
+        # Build adjacency list from dependencies
+        graph = self._build_adjacency_list()
+
+        def dfs(node: str, path: List[str]):
+            """Depth-first search to detect cycles."""
+            visited.add(node)
+            rec_stack.add(node)
+            path.append(node)
+
+            # Explore all neighbors
+            for neighbor in graph.get(node, []):
+                if neighbor not in visited:
+                    # Recursively visit unvisited neighbors
+                    dfs(neighbor, path[:])
+                elif neighbor in rec_stack:
+                    # Found a cycle - extract it from the path
+                    cycle_start = path.index(neighbor)
+                    cycle = path[cycle_start:] + [neighbor]
+
+                    # Avoid duplicate cycles by checking if this exact cycle exists
+                    cycle_set = set(cycle)
+                    is_duplicate = False
+                    for existing_cycle in cycles:
+                        if set(existing_cycle) == cycle_set:
+                            is_duplicate = True
+                            break
+
+                    if not is_duplicate:
+                        cycles.append(cycle)
+                        logger.warning(
+                            f"Circular dependency detected: {' -> '.join(cycle)}"
+                        )
+
+            rec_stack.remove(node)
+
+        # Start DFS from each unvisited node
+        for node in graph:
+            if node not in visited:
+                dfs(node, [])
+
+        return cycles
+
+    def get_cycle_analysis(self) -> Dict[str, any]:
+        """
+        Analyze cycles in the dependency graph and return detailed information.
+        """
+        cycles = self.detect_cycles()
+
+        if not cycles:
+            return {
+                "has_cycles": False,
+                "cycle_count": 0,
+                "cycles": [],
+                "affected_chunks": [],
+            }
+
+        # Collect all chunks involved in cycles
+        affected_chunks = set()
+        for cycle in cycles:
+            affected_chunks.update(cycle[:-1])  # Exclude duplicate last element
+
+        # Format cycles for better readability
+        formatted_cycles = []
+        for cycle in cycles:
+            formatted_cycles.append(
+                {
+                    "path": cycle,
+                    "length": len(cycle) - 1,  # Subtract 1 as last element is duplicate
+                    "description": " -> ".join(cycle),
+                }
+            )
+
+        return {
+            "has_cycles": True,
+            "cycle_count": len(cycles),
+            "cycles": formatted_cycles,
+            "affected_chunks": list(affected_chunks),
+            "affected_chunk_count": len(affected_chunks),
+        }
 
     def _find_chunk_for_location(
         self, file_uri: str, line: int, chunk_map: Dict[str, CodeChunk]
